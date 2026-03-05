@@ -1,0 +1,15 @@
+{
+  "name": "stock-live-ai-host",
+  "nodes": [
+    {"name": "Cron Trigger", "type": "n8n-nodes-base.cron"},
+    {"name": "Fetch Market Snapshot", "type": "n8n-nodes-base.httpRequest"},
+    {"name": "Fetch Audience Requests", "type": "n8n-nodes-base.httpRequest"},
+    {"name": "Merge Tasks", "type": "n8n-nodes-base.merge"},
+    {"name": "DeepSeek Script", "type": "n8n-nodes-base.httpRequest"},
+    {"name": "TTS Male", "type": "n8n-nodes-base.httpRequest"},
+    {"name": "TTS Female", "type": "n8n-nodes-base.httpRequest"},
+    {"name": "Push Overlay", "type": "n8n-nodes-base.httpRequest"},
+    {"name": "Trigger Stream Scene", "type": "n8n-nodes-base.httpRequest"}
+  ],
+  "connections": {}
+}
