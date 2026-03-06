@@ -1,5 +1,4 @@
 from pathlib import Path
-
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -28,6 +27,24 @@ def test_symbol_advice_categories():
     assert res.status_code == 200
     action = res.json()['action']
     assert action in ['持仓', '加仓', '减仓', '清仓']
+
+
+def test_platform_status_and_messages():
+    status = client.get('/api/platform/status')
+    assert status.status_code == 200
+    items = status.json()['items']
+    assert {x['platform'] for x in items} == {'douyin', 'kuaishou'}
+
+    messages = client.get('/api/platform/messages')
+    assert messages.status_code == 200
+    assert len(messages.json()['items']) >= 1
+
+
+def test_platform_reply():
+    res = client.post('/api/platform/reply', json={'platform': 'douyin', 'user': 'u1', 'text': '收到，稍后点评'})
+    assert res.status_code == 200
+    body = res.json()
+    assert body['platform'] == 'douyin'
 
 
 def test_audience_request_and_script():

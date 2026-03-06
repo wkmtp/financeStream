@@ -8,8 +8,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.models import AudienceRequestIn, CommentTask, LiveState, TTSRequest
+from app.models import AudienceRequestIn, CommentTask, LiveState, PlatformMessage, PlatformReplyIn, TTSRequest
 from app.services.market import MarketService
+from app.services.platform_interaction import PlatformInteractionService
 from app.services.script_engine import ScriptEngine
 from app.services.tts_engine import TTSEngine
 
@@ -26,6 +27,7 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 market = MarketService()
 script_engine = ScriptEngine()
 tts_engine = TTSEngine()
+platform_service = PlatformInteractionService()
 request_queue: deque[CommentTask] = deque(maxlen=300)
 
 
@@ -62,6 +64,28 @@ def advice_for_symbol(symbol: str):
     return advice.model_dump()
 
 
+@app.get("/api/platform/status")
+def platform_status():
+    return {"items": [x.model_dump() for x in platform_service.live_status()]}
+
+
+@app.get("/api/platform/messages")
+def platform_messages(limit: int = 20):
+    return {"items": [x.model_dump() for x in platform_service.list_messages(limit)]}
+
+
+@app.post("/api/platform/messages")
+def add_platform_message(payload: PlatformMessage):
+    msg = platform_service.ingest_message(payload)
+    return msg.model_dump()
+
+
+@app.post("/api/platform/reply")
+def reply_platform_message(payload: PlatformReplyIn):
+    msg = platform_service.add_reply(payload)
+    return msg.model_dump()
+
+
 @app.post("/api/audience/request")
 def add_request(payload: AudienceRequestIn):
     task = CommentTask(
@@ -85,6 +109,7 @@ def generate_script():
     rows = market.snapshot()
     hot = market.hot_stocks(rows, 3)
     audience_symbols = [task.symbol for task in request_queue]
+    audience_symbols.extend(platform_service.extract_symbol_requests(limit=30))
     packet = script_engine.generate(hot_stocks=hot, audience_symbols=audience_symbols)
     return packet.model_dump()
 
@@ -100,6 +125,8 @@ def live_state():
     rows = market.snapshot()
     hot = market.hot_stocks(rows, 3)
     audience_symbols = [task.symbol for task in request_queue]
+    audience_symbols.extend(platform_service.extract_symbol_requests(limit=30))
     packet = script_engine.generate(hot_stocks=hot, audience_symbols=audience_symbols)
     dialogues = script_engine.build_continuous_dialogue(rows, rounds=4)
-    return LiveState(discussing=packet.symbol, snapshots=rows, packet=packet, dialogues=dialogues)
+    messages = platform_service.list_messages(limit=10)
+    return LiveState(discussing=packet.symbol, snapshots=rows, packet=packet, dialogues=dialogues, platform_messages=messages)

@@ -61,8 +61,28 @@ class DialogueTurn(BaseModel):
     ts: datetime
 
 
+class PlatformMessage(BaseModel):
+    platform: Literal["douyin", "kuaishou"]
+    user: str
+    text: str
+    ts: datetime
+
+
+class PlatformReplyIn(BaseModel):
+    platform: Literal["douyin", "kuaishou"]
+    user: str
+    text: str
+
+
+class PlatformStatus(BaseModel):
+    platform: Literal["douyin", "kuaishou"]
+    live: bool
+    room_id: str
+
+
 class LiveState(BaseModel):
     discussing: str
     snapshots: list[StockSnapshot]
     packet: ScriptPacket
     dialogues: list[DialogueTurn]
+    platform_messages: list[PlatformMessage]

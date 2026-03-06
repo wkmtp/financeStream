@@ -10,7 +10,8 @@
   <body>
     <header>
       <h1>AI 炒股直播控制台</h1>
-      <p>双角色互动 + 今日加减仓建议 + 实时曲线</p>
+      <p>抖音 + 快手双平台同步直播互动</p>
+      <div id="platform-status"></div>
     </header>
 
     <main>
@@ -30,6 +31,20 @@
       <section class="panel">
         <h2>实时涨跌幅曲线</h2>
         <canvas id="curve"></canvas>
+      </section>
+
+      <section class="panel">
+        <h2>双平台互动弹幕</h2>
+        <ul id="platform-messages"></ul>
+        <form id="platform-reply-form">
+          <select id="reply-platform">
+            <option value="douyin">douyin</option>
+            <option value="kuaishou">kuaishou</option>
+          </select>
+          <input id="reply-user" placeholder="回复给谁" required />
+          <input id="reply-text" placeholder="回复内容" required />
+          <button type="submit">发送回复</button>
+        </form>
       </section>
 
       <section class="panel">

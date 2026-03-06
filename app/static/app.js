@@ -8,9 +8,12 @@ const addList = document.getElementById('add-list');
 const reduceList = document.getElementById('reduce-list');
 const adviceResult = document.getElementById('advice-result');
 const dialogueList = document.getElementById('dialogue-list');
+const platformStatus = document.getElementById('platform-status');
+const platformMessages = document.getElementById('platform-messages');
 
 const reqForm = document.getElementById('req-form');
 const adviceForm = document.getElementById('advice-form');
+const platformReplyForm = document.getElementById('platform-reply-form');
 
 const chartCtx = document.getElementById('curve');
 const chart = new Chart(chartCtx, {
@@ -28,11 +31,11 @@ async function refreshState() {
   risk.innerText = data.packet.risk_disclaimer;
   focus.innerHTML = data.packet.chart_focus_points.map(x => `<li>${x}</li>`).join('');
   dialogueList.innerHTML = data.dialogues.map(x => `<li>[${x.role}] ${x.text}</li>`).join('');
+  platformMessages.innerHTML = data.platform_messages.map(x => `<li>[${x.platform}] ${x.user}: ${x.text}</li>`).join('');
 
   const ts = new Date().toLocaleTimeString();
   chart.data.labels.push(ts);
   if (chart.data.labels.length > 18) chart.data.labels.shift();
-
   chart.data.datasets = data.snapshots.slice(0, 4).map((s, idx) => {
     const old = chart.data.datasets[idx]?.data || [];
     old.push(s.change_pct);
@@ -40,6 +43,12 @@ async function refreshState() {
     return { label: s.symbol, data: old, borderWidth: 2 };
   });
   chart.update();
+}
+
+async function refreshPlatformStatus() {
+  const res = await fetch('/api/platform/status');
+  const data = await res.json();
+  platformStatus.innerText = data.items.map(x => `${x.platform}:${x.live ? 'LIVE' : 'OFF'}(${x.room_id})`).join(' | ');
 }
 
 async function refreshQueue() {
@@ -76,9 +85,25 @@ adviceForm.addEventListener('submit', async (e) => {
   adviceResult.innerText = `${data.symbol}：${data.action}（score=${data.score}）- ${data.reason}`;
 });
 
+platformReplyForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const platform = document.getElementById('reply-platform').value;
+  const user = document.getElementById('reply-user').value;
+  const text = document.getElementById('reply-text').value;
+  await fetch('/api/platform/reply', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ platform, user, text })
+  });
+  platformReplyForm.reset();
+  refreshState();
+});
+
 refreshState();
+refreshPlatformStatus();
 refreshQueue();
 refreshRecommendations();
 setInterval(refreshState, 3500);
+setInterval(refreshPlatformStatus, 10000);
 setInterval(refreshQueue, 4500);
 setInterval(refreshRecommendations, 12000);
