@@ -1,4 +1,5 @@
 from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -7,11 +8,21 @@ from app.main import app
 client = TestClient(app)
 
 
+def test_health_endpoints():
+    live = client.get('/health/live')
+    ready = client.get('/health/ready')
+    assert live.status_code == 200
+    assert ready.status_code == 200
+    assert live.json()['status'] == 'live'
+    assert ready.json()['status'] == 'ready'
+
+
 def test_market_snapshot():
     res = client.get('/api/market/snapshot')
     assert res.status_code == 200
     body = res.json()
     assert len(body['items']) >= 10
+    assert 'server_time' in body
 
 
 def test_recommendations_has_10_each_side():

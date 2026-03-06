@@ -1,23 +1,33 @@
 from __future__ import annotations
 
+import logging
+import time
+import uuid
 from collections import deque
 from datetime import datetime, timedelta
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.config import settings
 from app.models import AudienceRequestIn, CommentTask, LiveState, PlatformMessage, PlatformReplyIn, TTSRequest
 from app.services.market import MarketService
 from app.services.platform_interaction import PlatformInteractionService
 from app.services.script_engine import ScriptEngine
 from app.services.tts_engine import TTSEngine
 
-app = FastAPI(title="AI Stock Live Studio")
+logging.basicConfig(
+    level=logging.DEBUG if settings.debug else logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+app = FastAPI(title=settings.app_name)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -28,7 +38,49 @@ market = MarketService()
 script_engine = ScriptEngine()
 tts_engine = TTSEngine()
 platform_service = PlatformInteractionService()
-request_queue: deque[CommentTask] = deque(maxlen=300)
+request_queue: deque[CommentTask] = deque(maxlen=settings.max_queue)
+
+
+@app.middleware("http")
+async def access_log_middleware(request: Request, call_next):
+    request_id = str(uuid.uuid4())
+    start = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("request_failed request_id=%s path=%s error=%s", request_id, request.url.path, exc)
+        return JSONResponse(status_code=500, content={"detail": "internal_server_error", "request_id": request_id})
+
+    latency_ms = round((time.perf_counter() - start) * 1000, 2)
+    response.headers["X-Request-ID"] = request_id
+    logger.info("request_ok request_id=%s method=%s path=%s status=%s latency_ms=%s", request_id, request.method, request.url.path, response.status_code, latency_ms)
+    return response
+
+
+def verify_api_key(x_api_key: str | None) -> None:
+    if not settings.api_key:
+        return
+    if x_api_key != settings.api_key:
+        raise HTTPException(status_code=401, detail="invalid_api_key")
+
+
+@app.get("/health/live")
+def health_live():
+    return {"status": "live", "service": settings.app_name, "env": settings.env}
+
+
+@app.get("/health/ready")
+def health_ready():
+    # lightweight readiness: core services instantiated
+    return {
+        "status": "ready",
+        "services": {
+            "market": market is not None,
+            "script": script_engine is not None,
+            "tts": tts_engine is not None,
+            "platform": platform_service is not None,
+        },
+    }
 
 
 @app.get("/")
@@ -40,7 +92,7 @@ def index() -> HTMLResponse:
 @app.get("/api/market/snapshot")
 def market_snapshot():
     rows = market.snapshot()
-    return {"items": [r.model_dump() for r in rows]}
+    return {"items": [r.model_dump() for r in rows], "server_time": datetime.utcnow().isoformat()}
 
 
 @app.get("/api/hot")
@@ -75,19 +127,22 @@ def platform_messages(limit: int = 20):
 
 
 @app.post("/api/platform/messages")
-def add_platform_message(payload: PlatformMessage):
+def add_platform_message(payload: PlatformMessage, x_api_key: str | None = Header(default=None)):
+    verify_api_key(x_api_key)
     msg = platform_service.ingest_message(payload)
     return msg.model_dump()
 
 
 @app.post("/api/platform/reply")
-def reply_platform_message(payload: PlatformReplyIn):
+def reply_platform_message(payload: PlatformReplyIn, x_api_key: str | None = Header(default=None)):
+    verify_api_key(x_api_key)
     msg = platform_service.add_reply(payload)
     return msg.model_dump()
 
 
 @app.post("/api/audience/request")
-def add_request(payload: AudienceRequestIn):
+def add_request(payload: AudienceRequestIn, x_api_key: str | None = Header(default=None)):
+    verify_api_key(x_api_key)
     task = CommentTask(
         source="audience",
         symbol=payload.symbol.upper(),
@@ -115,7 +170,8 @@ def generate_script():
 
 
 @app.post("/api/tts")
-def tts(payload: TTSRequest):
+def tts(payload: TTSRequest, x_api_key: str | None = Header(default=None)):
+    verify_api_key(x_api_key)
     path = tts_engine.synthesize(payload.text, payload.speaker)
     return {"audio_path": path, "speaker": payload.speaker}
 
