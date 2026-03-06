@@ -5,7 +5,7 @@
 - 今日建议加仓 10 支 / 减仓 10 支；
 - 个股问答给出持仓/加仓/减仓/清仓建议；
 - 抖音 + 快手双平台同时直播互动（弹幕聚合与回复）；
-- GPT-SoVITS 本地 TTS（失败自动回退）；
+- **双引擎 TTS：Piper + GPT-SoVITS 自动路由**（失败自动回退）；
 - 增加生产发布能力：健康检查、请求日志、请求ID、可选 API Key 鉴权、可配置 worker 启动。
 
 ## 快速启动
@@ -36,7 +36,19 @@ export APP_API_KEY="replace-with-strong-key"
 export UVICORN_WORKERS="2"
 export UVICORN_LOG_LEVEL="info"
 
-# GPT-SoVITS
+# TTS 路由策略
+export TTS_DEFAULT_ENGINE="auto"                  # auto|piper|gpt_sovits
+export TTS_AUTO_SHORT_TEXT_THRESHOLD="56"         # auto下短文本优先Piper
+
+# Piper（建议用于高频短句）
+export PIPER_BIN="piper"
+export PIPER_MODEL_MALE="/data/piper/zh_CN-male.onnx"
+export PIPER_CONFIG_MALE="/data/piper/zh_CN-male.onnx.json"
+export PIPER_MODEL_FEMALE="/data/piper/zh_CN-female.onnx"
+export PIPER_CONFIG_FEMALE="/data/piper/zh_CN-female.onnx.json"
+export PIPER_TIMEOUT="12"
+
+# GPT-SoVITS（建议用于重点讲解）
 export GPT_SOVITS_API_URL="http://127.0.0.1:9880/tts"
 export GPT_SOVITS_TIMEOUT="20"
 export GPT_SOVITS_TEXT_LANG="zh"
@@ -64,7 +76,7 @@ export GPT_SOVITS_PROMPT_TEXT_FEMALE="这是女主播参考音"
 - `POST /api/platform/reply`：主播回复平台用户（可选 API Key）
 - `POST /api/audience/request`：观众点股（可选 API Key）
 - `GET /api/script`：双角色解说稿
-- `POST /api/tts`：调用 GPT-SoVITS（可选 API Key）
+- `POST /api/tts`：双引擎 TTS（请求可带 `preferred_engine=auto|piper|gpt_sovits`）
 - `GET /api/live/state`：直播看板状态（含互动消息）
 
 ## 发布建议
@@ -72,8 +84,9 @@ export GPT_SOVITS_PROMPT_TEXT_FEMALE="这是女主播参考音"
 1. 反向代理（Nginx）开启 TLS。
 2. 设置 `APP_API_KEY` 并在调用写接口时传 `X-API-Key`。
 3. `APP_ALLOWED_ORIGINS` 仅保留正式域名。
-4. 通过 systemd 或容器编排设置进程自启动与重启策略。
-5. 定期轮转日志并监控 `/health/*`。
+4. 双引擎策略：高频短句用 Piper，重点段落用 GPT-SoVITS。
+5. 通过 systemd 或容器编排设置进程自启动与重启策略。
+6. 定期轮转日志并监控 `/health/*`。
 
 ## 合规说明
 

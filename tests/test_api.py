@@ -71,9 +71,10 @@ def test_audience_request_and_script():
 
 
 def test_tts_endpoint_generates_wav_file():
-    res = client.post('/api/tts', json={'text': '测试语音', 'speaker': 'female'})
+    res = client.post('/api/tts', json={'text': '测试语音', 'speaker': 'female', 'preferred_engine': 'piper'})
     assert res.status_code == 200
     data = res.json()
     out = Path(data['audio_path'])
     assert out.exists()
     assert out.suffix.lower() == '.wav'
+    assert data['engine_used'] in ['piper', 'gpt_sovits', 'tone_fallback']

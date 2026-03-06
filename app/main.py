@@ -172,8 +172,8 @@ def generate_script():
 @app.post("/api/tts")
 def tts(payload: TTSRequest, x_api_key: str | None = Header(default=None)):
     verify_api_key(x_api_key)
-    path = tts_engine.synthesize(payload.text, payload.speaker)
-    return {"audio_path": path, "speaker": payload.speaker}
+    path, engine_used = tts_engine.synthesize(payload.text, payload.speaker, preferred_engine=payload.preferred_engine)
+    return {"audio_path": path, "speaker": payload.speaker, "engine_used": engine_used}
 
 
 @app.get("/api/live/state", response_model=LiveState)

@@ -41,6 +41,7 @@ class AudienceRequestIn(BaseModel):
 class TTSRequest(BaseModel):
     text: str
     speaker: Literal["male", "female"]
+    preferred_engine: Literal["auto", "piper", "gpt_sovits"] = "auto"
 
 
 class AdviceResponse(BaseModel):
