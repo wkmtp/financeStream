@@ -48,6 +48,20 @@ def hot_stocks(top_n: int = 3):
     return {"items": [r.model_dump() for r in hot]}
 
 
+@app.get("/api/recommendations")
+def recommendations():
+    rows = market.snapshot()
+    board = script_engine.build_recommendations(rows)
+    return board.model_dump()
+
+
+@app.get("/api/advice/{symbol}")
+def advice_for_symbol(symbol: str):
+    rows = market.snapshot()
+    advice = script_engine.advice_for_symbol(rows, symbol)
+    return advice.model_dump()
+
+
 @app.post("/api/audience/request")
 def add_request(payload: AudienceRequestIn):
     task = CommentTask(
@@ -87,4 +101,5 @@ def live_state():
     hot = market.hot_stocks(rows, 3)
     audience_symbols = [task.symbol for task in request_queue]
     packet = script_engine.generate(hot_stocks=hot, audience_symbols=audience_symbols)
-    return LiveState(discussing=packet.symbol, snapshots=rows, packet=packet)
+    dialogues = script_engine.build_continuous_dialogue(rows, rounds=4)
+    return LiveState(discussing=packet.symbol, snapshots=rows, packet=packet, dialogues=dialogues)

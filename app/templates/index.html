@@ -10,7 +10,7 @@
   <body>
     <header>
       <h1>AI 炒股直播控制台</h1>
-      <p>双角色主播 + 热门股自动点评 + 实时曲线</p>
+      <p>双角色互动 + 今日加减仓建议 + 实时曲线</p>
     </header>
 
     <main>
@@ -40,6 +40,30 @@
           <button type="submit">提交</button>
         </form>
         <ul id="queue"></ul>
+      </section>
+
+      <section class="panel">
+        <h2>今日建议加仓 10 支</h2>
+        <ul id="add-list"></ul>
+      </section>
+
+      <section class="panel">
+        <h2>今日建议减仓 10 支</h2>
+        <ul id="reduce-list"></ul>
+      </section>
+
+      <section class="panel">
+        <h2>个股问答建议（持仓/加仓/减仓/清仓）</h2>
+        <form id="advice-form">
+          <input id="advice-symbol" placeholder="输入股票代码" required />
+          <button type="submit">查询</button>
+        </form>
+        <div id="advice-result"></div>
+      </section>
+
+      <section class="panel">
+        <h2>不间断互动（低 token）</h2>
+        <ul id="dialogue-list"></ul>
       </section>
     </main>
 

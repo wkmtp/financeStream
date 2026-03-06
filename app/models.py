@@ -43,7 +43,26 @@ class TTSRequest(BaseModel):
     speaker: Literal["male", "female"]
 
 
+class AdviceResponse(BaseModel):
+    symbol: str
+    action: Literal["持仓", "加仓", "减仓", "清仓"]
+    score: float
+    reason: str
+
+
+class RecommendationBoard(BaseModel):
+    add_positions: list[AdviceResponse]
+    reduce_positions: list[AdviceResponse]
+
+
+class DialogueTurn(BaseModel):
+    role: Literal["male", "female"]
+    text: str
+    ts: datetime
+
+
 class LiveState(BaseModel):
     discussing: str
     snapshots: list[StockSnapshot]
     packet: ScriptPacket
+    dialogues: list[DialogueTurn]

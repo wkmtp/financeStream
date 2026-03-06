@@ -12,7 +12,22 @@ def test_market_snapshot():
     res = client.get('/api/market/snapshot')
     assert res.status_code == 200
     body = res.json()
-    assert len(body['items']) >= 3
+    assert len(body['items']) >= 10
+
+
+def test_recommendations_has_10_each_side():
+    res = client.get('/api/recommendations')
+    assert res.status_code == 200
+    body = res.json()
+    assert len(body['add_positions']) == 10
+    assert len(body['reduce_positions']) == 10
+
+
+def test_symbol_advice_categories():
+    res = client.get('/api/advice/600519.SH')
+    assert res.status_code == 200
+    action = res.json()['action']
+    assert action in ['持仓', '加仓', '减仓', '清仓']
 
 
 def test_audience_request_and_script():
@@ -24,7 +39,7 @@ def test_audience_request_and_script():
     payload = script.json()
     assert payload['male_script']
     assert payload['female_script']
-    assert '风险' in payload['risk_disclaimer']
+    assert '不构成投资建议' in payload['risk_disclaimer']
 
 
 def test_tts_endpoint_generates_wav_file():
