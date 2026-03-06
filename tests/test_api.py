@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -23,3 +25,12 @@ def test_audience_request_and_script():
     assert payload['male_script']
     assert payload['female_script']
     assert '风险' in payload['risk_disclaimer']
+
+
+def test_tts_endpoint_generates_wav_file():
+    res = client.post('/api/tts', json={'text': '测试语音', 'speaker': 'female'})
+    assert res.status_code == 200
+    data = res.json()
+    out = Path(data['audio_path'])
+    assert out.exists()
+    assert out.suffix.lower() == '.wav'
