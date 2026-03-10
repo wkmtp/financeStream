@@ -4,7 +4,8 @@
 - 双角色（男/女）自动解说；
 - 今日建议加仓 10 支 / 减仓 10 支；
 - 个股问答给出持仓/加仓/减仓/清仓建议；
-- 抖音 + 快手双平台同时直播互动（弹幕聚合与回复）；
+- 采用 **OpenClaw** 对接抖音 + 快手互动（弹幕聚合与回复）；
+- 采用 **DeepSeek** 作为思考大模型生成直播讲解（失败回退规则模板）；
 - 双引擎 TTS：Piper + GPT-SoVITS 自动路由（失败自动回退）；
 - FFmpeg 动态画面叠字推流到 RTMP；
 - 生产能力：健康检查、请求日志、请求ID、可选 API Key 鉴权、可配置 worker 启动。
@@ -53,6 +54,16 @@ export APP_API_KEY="replace-with-strong-key"
 # uvicorn
 export UVICORN_WORKERS="2"
 export UVICORN_LOG_LEVEL="info"
+
+# OpenClaw（抖音/快手互动）
+export OPENCLAW_API_URL="http://127.0.0.1:9000"
+export OPENCLAW_TIMEOUT="8"
+
+# DeepSeek（思考大模型）
+export DEEPSEEK_API_URL="https://api.deepseek.com/chat/completions"
+export DEEPSEEK_API_KEY="your-deepseek-key"
+export DEEPSEEK_MODEL="deepseek-chat"
+export DEEPSEEK_TIMEOUT="18"
 
 # TTS 路由策略
 export TTS_DEFAULT_ENGINE="auto"                  # auto|piper|gpt_sovits

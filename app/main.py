@@ -23,7 +23,7 @@ from app.models import (
 )
 from app.services.live_stream import LiveStreamService
 from app.services.market import MarketService
-from app.services.platform_interaction import PlatformInteractionService
+from app.services.openclaw_interaction import OpenClawInteractionService
 from app.services.script_engine import ScriptEngine
 from app.services.tts_engine import TTSEngine
 
@@ -45,7 +45,7 @@ app.add_middleware(
 market = MarketService()
 script_engine = ScriptEngine()
 tts_engine = TTSEngine()
-platform_service = PlatformInteractionService()
+platform_service = OpenClawInteractionService()
 live_stream_service = LiveStreamService()
 request_queue: deque[CommentTask] = deque(maxlen=settings.max_queue)
 

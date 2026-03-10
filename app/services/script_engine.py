@@ -2,11 +2,22 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import datetime
+import json
+import os
+import urllib.request
 
 from app.models import AdviceResponse, DialogueTurn, RecommendationBoard, ScriptPacket, StockSnapshot
 
 
 class ScriptEngine:
+    """DeepSeek-first script engine with deterministic fallback templates."""
+
+    def __init__(self) -> None:
+        self.deepseek_api_url = os.getenv("DEEPSEEK_API_URL", "")
+        self.deepseek_api_key = os.getenv("DEEPSEEK_API_KEY", "")
+        self.deepseek_model = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+        self.deepseek_timeout = float(os.getenv("DEEPSEEK_TIMEOUT", "18"))
+
     def generate(
         self,
         hot_stocks: list[StockSnapshot],
@@ -14,6 +25,11 @@ class ScriptEngine:
     ) -> ScriptPacket:
         audience_symbols = audience_symbols or []
         target = self._pick_target(hot_stocks, audience_symbols)
+
+        deepseek_packet = self._generate_by_deepseek(target)
+        if deepseek_packet:
+            return deepseek_packet
+
         male_script = (
             f"{target.symbol} 现价{target.price}，涨跌{target.change_pct}% 。"
             f"MA5 {target.ma5}/MA20 {target.ma20}，MACD {target.macd}。"
@@ -29,6 +45,52 @@ class ScriptEngine:
             risk_disclaimer="仅供学习交流，不构成投资建议。",
             chart_focus_points=["分时均价", "成交量峰值", "MA5/MA20关系"],
         )
+
+    def _generate_by_deepseek(self, target: StockSnapshot) -> ScriptPacket | None:
+        if not self.deepseek_api_url or not self.deepseek_api_key:
+            return None
+
+        prompt = (
+            "你是财经直播文案助手。请输出JSON，字段为male_script,female_script,risk_disclaimer,chart_focus_points。"
+            f"股票={target.symbol},价格={target.price},涨跌={target.change_pct},量比={target.volume_ratio},"
+            f"MA5={target.ma5},MA20={target.ma20},MACD={target.macd}。"
+            "要求：短句、省token、必须有风险提示。"
+        )
+
+        payload = {
+            "model": self.deepseek_model,
+            "messages": [
+                {"role": "system", "content": "你是专业中文股票直播脚本助手。"},
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.5,
+            "response_format": {"type": "json_object"},
+        }
+
+        req = urllib.request.Request(
+            self.deepseek_api_url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.deepseek_api_key}",
+            },
+            method="POST",
+        )
+
+        try:
+            with urllib.request.urlopen(req, timeout=self.deepseek_timeout) as response:
+                data = json.loads(response.read().decode("utf-8"))
+            content = data["choices"][0]["message"]["content"]
+            obj = json.loads(content)
+            return ScriptPacket(
+                symbol=target.symbol,
+                male_script=obj.get("male_script", ""),
+                female_script=obj.get("female_script", ""),
+                risk_disclaimer=obj.get("risk_disclaimer", "仅供学习交流，不构成投资建议。"),
+                chart_focus_points=obj.get("chart_focus_points", ["分时均价", "成交量峰值", "MA5/MA20关系"]),
+            )
+        except Exception:
+            return None
 
     def build_recommendations(self, snapshots: list[StockSnapshot]) -> RecommendationBoard:
         scored: list[tuple[StockSnapshot, float]] = []
