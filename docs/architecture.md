@@ -1,4 +1,4 @@
-# 系统架构设计
+# 系统架构设计（动态直播流）
 
 ## 1. 模块图
 
@@ -15,44 +15,22 @@
         │              [DeepSeek 生成脚本]
         │                     │
         ▼                     ▼
-[图表服务 Web]         [TTS 服务 GPT-SoVITS]
+[动态叠字文本生成]      [双引擎TTS: Piper + GPT-SoVITS]
         │                     │
-        └──────────► [导播合成 OBS/FFmpeg] ───► 抖音/快手
+        └──────────► [FFmpeg 动态合成推流] ───► 抖音/快手 RTMP
 ```
 
-## 2. 关键数据对象
+## 2. 关键能力
 
-- `stock_snapshot`
-  - `symbol`
-  - `price`
-  - `change_pct`
-  - `volume_ratio`
-  - `indicators`（MA/MACD/KDJ...）
-  - `ts`
+- `POST /api/live/start`：启动动态直播推流
+- `POST /api/live/stop`：停止推流
+- `GET /api/live/stream-status`：推流状态
+- 叠字文本每 2 秒刷新，持续展示讨论标的、双角色短句和风险提示
+- TTS 双引擎路由：短句优先 Piper，重点段落优先 GPT-SoVITS
 
-- `comment_task`
-  - `source`: `auto|audience`
-  - `symbol`
-  - `priority`
-  - `requested_by`
-  - `deadline`
+## 3. 容错策略
 
-- `script_packet`
-  - `male_script`
-  - `female_script`
-  - `risk_disclaimer`
-  - `chart_focus_points`
-
-## 3. 调度策略
-
-- 自动任务：每 45 秒触发
-- 观众请求：实时入队，优先级高于自动任务
-- 播报并发：
-  - 只允许一个 TTS 合成任务执行
-  - 下游导播采用队列播放，防止音轨冲突
-
-## 4. 容错
-
-- DeepSeek 超时：回退到模板化规则播报
-- TTS 失败：使用备用 speaker 或预录提示音
-- 行情源失败：切换到备用供应商并标注“数据延迟”
+- Piper 失败 -> GPT-SoVITS
+- GPT-SoVITS 失败 -> Piper
+- 双引擎都失败 -> 本地 tone 回退，确保不断播
+- FFmpeg 进程退出可通过外层进程管理器（systemd/docker）拉起

@@ -8,11 +8,20 @@ from datetime import datetime, timedelta
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 
 from app.config import settings
-from app.models import AudienceRequestIn, CommentTask, LiveState, PlatformMessage, PlatformReplyIn, TTSRequest
+from app.models import (
+    AudienceRequestIn,
+    CommentTask,
+    LiveStartRequest,
+    LiveState,
+    LiveStreamControlResponse,
+    PlatformMessage,
+    PlatformReplyIn,
+    TTSRequest,
+)
+from app.services.live_stream import LiveStreamService
 from app.services.market import MarketService
 from app.services.platform_interaction import PlatformInteractionService
 from app.services.script_engine import ScriptEngine
@@ -32,12 +41,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 market = MarketService()
 script_engine = ScriptEngine()
 tts_engine = TTSEngine()
 platform_service = PlatformInteractionService()
+live_stream_service = LiveStreamService()
 request_queue: deque[CommentTask] = deque(maxlen=settings.max_queue)
 
 
@@ -53,7 +62,14 @@ async def access_log_middleware(request: Request, call_next):
 
     latency_ms = round((time.perf_counter() - start) * 1000, 2)
     response.headers["X-Request-ID"] = request_id
-    logger.info("request_ok request_id=%s method=%s path=%s status=%s latency_ms=%s", request_id, request.method, request.url.path, response.status_code, latency_ms)
+    logger.info(
+        "request_ok request_id=%s method=%s path=%s status=%s latency_ms=%s",
+        request_id,
+        request.method,
+        request.url.path,
+        response.status_code,
+        latency_ms,
+    )
     return response
 
 
@@ -64,6 +80,30 @@ def verify_api_key(x_api_key: str | None) -> None:
         raise HTTPException(status_code=401, detail="invalid_api_key")
 
 
+def build_overlay_text() -> str:
+    rows = market.snapshot()
+    hot = market.hot_stocks(rows, 3)
+    audience_symbols = [task.symbol for task in request_queue]
+    audience_symbols.extend(platform_service.extract_symbol_requests(limit=30))
+    packet = script_engine.generate(hot_stocks=hot, audience_symbols=audience_symbols)
+    stamp = datetime.utcnow().strftime("%H:%M:%S")
+    return (
+        f"AI Stock Live  {stamp}\n"
+        f"讨论标的: {packet.symbol}\n"
+        f"男主播: {packet.male_script}\n"
+        f"女主播: {packet.female_script}\n"
+        f"风险提示: {packet.risk_disclaimer}"
+    )
+
+
+@app.get("/")
+def root_info():
+    return {
+        "message": "dynamic live mode enabled",
+        "how_to_start": "POST /api/live/start with platform + rtmp_url",
+    }
+
+
 @app.get("/health/live")
 def health_live():
     return {"status": "live", "service": settings.app_name, "env": settings.env}
@@ -71,7 +111,6 @@ def health_live():
 
 @app.get("/health/ready")
 def health_ready():
-    # lightweight readiness: core services instantiated
     return {
         "status": "ready",
         "services": {
@@ -79,14 +118,35 @@ def health_ready():
             "script": script_engine is not None,
             "tts": tts_engine is not None,
             "platform": platform_service is not None,
+            "live_stream": live_stream_service is not None,
         },
     }
 
 
-@app.get("/")
-def index() -> HTMLResponse:
-    html = open("app/templates/index.html", "r", encoding="utf-8").read()
-    return HTMLResponse(html)
+@app.post("/api/live/start", response_model=LiveStreamControlResponse)
+def start_live(payload: LiveStartRequest, x_api_key: str | None = Header(default=None)):
+    verify_api_key(x_api_key)
+    try:
+        runtime = live_stream_service.start(payload.platform, payload.rtmp_url, build_overlay_text)
+    except Exception as exc:  # noqa: BLE001
+        return LiveStreamControlResponse(ok=False, detail=str(exc), status=live_stream_service.status())
+    return LiveStreamControlResponse(ok=True, detail="stream_started", status=runtime.__dict__)
+
+
+@app.post("/api/live/stop", response_model=LiveStreamControlResponse)
+def stop_live(x_api_key: str | None = Header(default=None)):
+    verify_api_key(x_api_key)
+    stopped = live_stream_service.stop()
+    return LiveStreamControlResponse(
+        ok=stopped,
+        detail="stream_stopped" if stopped else "stream_not_running",
+        status=live_stream_service.status(),
+    )
+
+
+@app.get("/api/live/stream-status")
+def stream_status():
+    return live_stream_service.status()
 
 
 @app.get("/api/market/snapshot")

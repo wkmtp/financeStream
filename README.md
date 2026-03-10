@@ -1,12 +1,13 @@
 # AI 炒股直播软件（Jetson Xavier NX）
 
-这是一个可运行并可发布的版本：
+这是一个可运行并可发布的**动态直播流**版本（非网页展示）：
 - 双角色（男/女）自动解说；
 - 今日建议加仓 10 支 / 减仓 10 支；
 - 个股问答给出持仓/加仓/减仓/清仓建议；
 - 抖音 + 快手双平台同时直播互动（弹幕聚合与回复）；
-- **双引擎 TTS：Piper + GPT-SoVITS 自动路由**（失败自动回退）；
-- 增加生产发布能力：健康检查、请求日志、请求ID、可选 API Key 鉴权、可配置 worker 启动。
+- 双引擎 TTS：Piper + GPT-SoVITS 自动路由（失败自动回退）；
+- FFmpeg 动态画面叠字推流到 RTMP；
+- 生产能力：健康检查、请求日志、请求ID、可选 API Key 鉴权、可配置 worker 启动。
 
 ## 快速启动
 
@@ -17,7 +18,24 @@ pip install -r requirements.txt
 ./run.sh
 ```
 
-打开：<http://localhost:8000>
+## 动态直播控制
+
+1. 启动直播：
+```bash
+curl -X POST http://localhost:8000/api/live/start \
+  -H 'Content-Type: application/json' \
+  -d '{"platform":"douyin","rtmp_url":"rtmp://push.example.com/live/room001"}'
+```
+
+2. 查看状态：
+```bash
+curl http://localhost:8000/api/live/stream-status
+```
+
+3. 停止直播：
+```bash
+curl -X POST http://localhost:8000/api/live/stop
+```
 
 ## 生产环境变量
 
@@ -38,9 +56,9 @@ export UVICORN_LOG_LEVEL="info"
 
 # TTS 路由策略
 export TTS_DEFAULT_ENGINE="auto"                  # auto|piper|gpt_sovits
-export TTS_AUTO_SHORT_TEXT_THRESHOLD="56"         # auto下短文本优先Piper
+export TTS_AUTO_SHORT_TEXT_THRESHOLD="56"
 
-# Piper（建议用于高频短句）
+# Piper
 export PIPER_BIN="piper"
 export PIPER_MODEL_MALE="/data/piper/zh_CN-male.onnx"
 export PIPER_CONFIG_MALE="/data/piper/zh_CN-male.onnx.json"
@@ -48,7 +66,7 @@ export PIPER_MODEL_FEMALE="/data/piper/zh_CN-female.onnx"
 export PIPER_CONFIG_FEMALE="/data/piper/zh_CN-female.onnx.json"
 export PIPER_TIMEOUT="12"
 
-# GPT-SoVITS（建议用于重点讲解）
+# GPT-SoVITS
 export GPT_SOVITS_API_URL="http://127.0.0.1:9880/tts"
 export GPT_SOVITS_TIMEOUT="20"
 export GPT_SOVITS_TEXT_LANG="zh"
@@ -61,32 +79,8 @@ export GPT_SOVITS_PROMPT_TEXT_FEMALE="这是女主播参考音"
 
 ## 健康检查
 
-- `GET /health/live`：存活检查（liveness）
-- `GET /health/ready`：就绪检查（readiness）
-
-## 核心 API
-
-- `GET /api/market/snapshot`：行情快照
-- `GET /api/hot`：热门股票
-- `GET /api/recommendations`：今日加仓 10 支 / 减仓 10 支
-- `GET /api/advice/{symbol}`：个股建议（持仓/加仓/减仓/清仓）
-- `GET /api/platform/status`：抖音/快手双平台直播状态
-- `GET /api/platform/messages`：双平台互动消息聚合
-- `POST /api/platform/messages`：写入平台消息（可选 API Key）
-- `POST /api/platform/reply`：主播回复平台用户（可选 API Key）
-- `POST /api/audience/request`：观众点股（可选 API Key）
-- `GET /api/script`：双角色解说稿
-- `POST /api/tts`：双引擎 TTS（请求可带 `preferred_engine=auto|piper|gpt_sovits`）
-- `GET /api/live/state`：直播看板状态（含互动消息）
-
-## 发布建议
-
-1. 反向代理（Nginx）开启 TLS。
-2. 设置 `APP_API_KEY` 并在调用写接口时传 `X-API-Key`。
-3. `APP_ALLOWED_ORIGINS` 仅保留正式域名。
-4. 双引擎策略：高频短句用 Piper，重点段落用 GPT-SoVITS。
-5. 通过 systemd 或容器编排设置进程自启动与重启策略。
-6. 定期轮转日志并监控 `/health/*`。
+- `GET /health/live`
+- `GET /health/ready`
 
 ## 合规说明
 

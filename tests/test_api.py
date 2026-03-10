@@ -8,6 +8,12 @@ from app.main import app
 client = TestClient(app)
 
 
+def test_root_dynamic_mode():
+    res = client.get('/')
+    assert res.status_code == 200
+    assert res.json()['message'] == 'dynamic live mode enabled'
+
+
 def test_health_endpoints():
     live = client.get('/health/live')
     ready = client.get('/health/ready')
@@ -15,6 +21,23 @@ def test_health_endpoints():
     assert ready.status_code == 200
     assert live.json()['status'] == 'live'
     assert ready.json()['status'] == 'ready'
+
+
+def test_live_stream_status_endpoint():
+    res = client.get('/api/live/stream-status')
+    assert res.status_code == 200
+    assert 'running' in res.json()
+
+
+def test_live_stream_start_stop_contract():
+    start = client.post('/api/live/start', json={'platform': 'douyin', 'rtmp_url': 'rtmp://example/live/room'})
+    assert start.status_code == 200
+    assert 'ok' in start.json()
+    assert 'status' in start.json()
+
+    stop = client.post('/api/live/stop')
+    assert stop.status_code == 200
+    assert 'ok' in stop.json()
 
 
 def test_market_snapshot():

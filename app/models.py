@@ -81,6 +81,18 @@ class PlatformStatus(BaseModel):
     room_id: str
 
 
+
+
+class LiveStartRequest(BaseModel):
+    platform: Literal["douyin", "kuaishou"]
+    rtmp_url: str
+
+
+class LiveStreamControlResponse(BaseModel):
+    ok: bool
+    detail: str
+    status: dict
+
 class LiveState(BaseModel):
     discussing: str
     snapshots: list[StockSnapshot]
