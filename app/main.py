@@ -21,6 +21,7 @@ from app.models import (
     PlatformReplyIn,
     TTSRequest,
 )
+from app.services.live_preview import LivePreviewService
 from app.services.live_stream import LiveStreamService
 from app.services.market import MarketService
 from app.services.openclaw_interaction import OpenClawInteractionService
@@ -105,6 +106,9 @@ def _build_runtime_state() -> LiveState:
     )
 
 
+live_preview_service: LivePreviewService | None = None
+
+
 def build_overlay_text() -> str:
     state = _build_runtime_state()
     stamp = datetime.utcnow().strftime("%H:%M:%S")
@@ -122,6 +126,15 @@ def build_overlay_text() -> str:
         f"股评: {comment_text}\n"
         f"风险提示: {state.packet.risk_disclaimer}"
     )
+
+
+live_preview_service = LivePreviewService(_build_runtime_state, market, tts_engine)
+live_preview_service.start()
+
+
+@app.get("/api/live/preview")
+def live_preview():
+    return live_preview_service.snapshot_payload()
 
 
 @app.get("/")

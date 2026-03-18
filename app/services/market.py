@@ -19,6 +19,7 @@ SYMBOLS = [
 class MarketService:
     def __init__(self) -> None:
         self._base_price = {symbol: random.uniform(12, 520) for symbol in SYMBOLS}
+        self._history: dict[str, list[float]] = {symbol: [] for symbol in SYMBOLS}
         self._ak = self._load_akshare()
 
     @staticmethod
@@ -32,7 +33,14 @@ class MarketService:
 
     def snapshot(self) -> list[StockSnapshot]:
         rows = self._snapshot_from_akshare_or_eastmoney()
-        return rows if rows else self._snapshot_fallback()
+        if len(rows) != len(SYMBOLS):
+            row_map = {row.symbol: row for row in rows}
+            for fallback_row in self._snapshot_fallback():
+                row_map.setdefault(fallback_row.symbol, fallback_row)
+            rows = [row_map[symbol] for symbol in SYMBOLS]
+
+        self._remember_history(rows)
+        return rows
 
     def source_status(self, snapshots: list[StockSnapshot] | None = None) -> dict:
         rows = snapshots or self.snapshot()
@@ -44,6 +52,17 @@ class MarketService:
             "source_counts": dict(counts),
             "primary_mode": "akshare_then_eastmoney_then_fallback",
         }
+
+
+    def price_history(self, symbol: str, points: int = 30) -> list[float]:
+        return self._history.get(symbol.upper(), [])[-points:]
+
+    def _remember_history(self, snapshots: list[StockSnapshot]) -> None:
+        for snap in snapshots:
+            bucket = self._history.setdefault(snap.symbol, [])
+            bucket.append(snap.price)
+            if len(bucket) > 120:
+                del bucket[:-120]
 
     def _snapshot_from_akshare_or_eastmoney(self) -> list[StockSnapshot]:
         rows: list[StockSnapshot] = []

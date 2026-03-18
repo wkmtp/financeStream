@@ -2,7 +2,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.main import app, live_preview_service
 
 
 client = TestClient(app)
@@ -28,6 +28,19 @@ def test_live_stream_status_endpoint():
     res = client.get('/api/live/stream-status')
     assert res.status_code == 200
     assert 'running' in res.json()
+
+
+def test_live_preview_payload_and_assets():
+    res = client.get('/api/live/preview')
+    assert res.status_code == 200
+    payload = res.json()
+    assert payload['frame_url'] == '/artifacts/live/frame.svg'
+    assert payload['audio_url'] == '/artifacts/live/latest.wav'
+    assert payload['news_items']
+    assert live_preview_service is not None
+    status = live_preview_service.status()
+    assert Path(status.frame_path).exists()
+    assert Path(status.audio_path).exists()
 
 
 def test_live_stream_start_stop_contract():
