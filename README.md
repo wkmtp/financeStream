@@ -1,14 +1,13 @@
 # AI 炒股直播软件（Jetson Xavier NX）
 
 这是一个可运行并可发布的**动态直播流**版本（非网页展示）：
-- 双角色（男/女）自动解说；
-- 今日建议加仓 10 支 / 减仓 10 支；
-- 个股问答给出持仓/加仓/减仓/清仓建议；
-- 采用 **OpenClaw** 对接抖音 + 快手互动（弹幕聚合与回复）；
-- 采用 **DeepSeek** 作为思考大模型生成直播讲解（失败回退规则模板）；
-- 双引擎 TTS：Piper + GPT-SoVITS 自动路由（失败自动回退）；
-- FFmpeg 动态画面叠字推流到 RTMP；
-- 生产能力：健康检查、请求日志、请求ID、可选 API Key 鉴权、可配置 worker 启动。
+- 行情层采用 **AkShare + 东方财富 API** 优先获取实时行情，失败时回退本地模拟；
+- 互动层采用 **OpenClaw** 对接抖音 + 快手弹幕与回复；
+- 推理层采用 **DeepSeek** 生成双角色讲解与每只入选股票的股评；
+- 交易层自动生成每日买进/卖出/持仓，并统计累计收益；
+- 背景叠字实时展示：讨论标的、双角色话术、当日买卖、当前持仓、累计收益、个股股评；
+- TTS 采用 Piper + GPT-SoVITS 双引擎自动路由；
+- FFmpeg 动态画面叠字推流到 RTMP。
 
 ## 快速启动
 
@@ -19,79 +18,32 @@ pip install -r requirements.txt
 ./run.sh
 ```
 
-## 动态直播控制
+## 核心接口
 
-1. 启动直播：
-```bash
-curl -X POST http://localhost:8000/api/live/start \
-  -H 'Content-Type: application/json' \
-  -d '{"platform":"douyin","rtmp_url":"rtmp://push.example.com/live/room001"}'
-```
-
-2. 查看状态：
-```bash
-curl http://localhost:8000/api/live/stream-status
-```
-
-3. 停止直播：
-```bash
-curl -X POST http://localhost:8000/api/live/stop
-```
+- `GET /api/market/snapshot`：实时行情快照（AkShare/东方财富优先）
+- `GET /api/recommendations`：今日加仓/减仓推荐 + 每只入选股票股评
+- `GET /api/portfolio`：当日买卖、当前持仓、累计收益
+- `GET /api/live/state`：直播完整运行态（含股评与组合）
+- `POST /api/live/start`：启动 RTMP 动态直播
+- `POST /api/live/stop`：停止 RTMP 动态直播
 
 ## 生产环境变量
 
 ```bash
-# 应用
-export APP_NAME="AI Stock Live Studio"
-export APP_ENV="prod"
-export APP_DEBUG="false"
-export APP_ALLOWED_ORIGINS="https://your-domain.com"
-export APP_MAX_QUEUE="500"
-
-# 可选：写接口鉴权，不设置则关闭鉴权
-export APP_API_KEY="replace-with-strong-key"
-
-# uvicorn
-export UVICORN_WORKERS="2"
-export UVICORN_LOG_LEVEL="info"
-
-# OpenClaw（抖音/快手互动）
+# OpenClaw
 export OPENCLAW_API_URL="http://127.0.0.1:9000"
 export OPENCLAW_TIMEOUT="8"
 
-# DeepSeek（思考大模型）
+# DeepSeek
 export DEEPSEEK_API_URL="https://api.deepseek.com/chat/completions"
 export DEEPSEEK_API_KEY="your-deepseek-key"
 export DEEPSEEK_MODEL="deepseek-chat"
 export DEEPSEEK_TIMEOUT="18"
 
-# TTS 路由策略
-export TTS_DEFAULT_ENGINE="auto"                  # auto|piper|gpt_sovits
+# TTS
+export TTS_DEFAULT_ENGINE="auto"
 export TTS_AUTO_SHORT_TEXT_THRESHOLD="56"
-
-# Piper
-export PIPER_BIN="piper"
-export PIPER_MODEL_MALE="/data/piper/zh_CN-male.onnx"
-export PIPER_CONFIG_MALE="/data/piper/zh_CN-male.onnx.json"
-export PIPER_MODEL_FEMALE="/data/piper/zh_CN-female.onnx"
-export PIPER_CONFIG_FEMALE="/data/piper/zh_CN-female.onnx.json"
-export PIPER_TIMEOUT="12"
-
-# GPT-SoVITS
-export GPT_SOVITS_API_URL="http://127.0.0.1:9880/tts"
-export GPT_SOVITS_TIMEOUT="20"
-export GPT_SOVITS_TEXT_LANG="zh"
-export GPT_SOVITS_PROMPT_LANG="zh"
-export GPT_SOVITS_REF_AUDIO_MALE="/data/voices/male_ref.wav"
-export GPT_SOVITS_PROMPT_TEXT_MALE="这是男主播参考音"
-export GPT_SOVITS_REF_AUDIO_FEMALE="/data/voices/female_ref.wav"
-export GPT_SOVITS_PROMPT_TEXT_FEMALE="这是女主播参考音"
 ```
-
-## 健康检查
-
-- `GET /health/live`
-- `GET /health/ready`
 
 ## 合规说明
 

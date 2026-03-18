@@ -48,12 +48,13 @@ def test_market_snapshot():
     assert 'server_time' in body
 
 
-def test_recommendations_has_10_each_side():
+def test_recommendations_has_10_each_side_and_comments():
     res = client.get('/api/recommendations')
     assert res.status_code == 200
     body = res.json()
     assert len(body['add_positions']) == 10
     assert len(body['reduce_positions']) == 10
+    assert isinstance(body['comments'], list)
 
 
 def test_symbol_advice_categories():
@@ -61,6 +62,15 @@ def test_symbol_advice_categories():
     assert res.status_code == 200
     action = res.json()['action']
     assert action in ['持仓', '加仓', '减仓', '清仓']
+
+
+def test_portfolio_endpoint():
+    res = client.get('/api/portfolio')
+    assert res.status_code == 200
+    body = res.json()
+    assert 'cumulative_return_pct' in body
+    assert 'todays_trades' in body
+    assert 'positions' in body
 
 
 def test_platform_status_and_messages():
@@ -81,7 +91,7 @@ def test_platform_reply():
     assert body['platform'] == 'douyin'
 
 
-def test_audience_request_and_script():
+def test_audience_request_and_script_and_live_state():
     req = client.post('/api/audience/request', json={'symbol': '600519.SH', 'user': 'tester'})
     assert req.status_code == 200
 
@@ -91,6 +101,12 @@ def test_audience_request_and_script():
     assert payload['male_script']
     assert payload['female_script']
     assert '不构成投资建议' in payload['risk_disclaimer']
+
+    live = client.get('/api/live/state')
+    assert live.status_code == 200
+    live_payload = live.json()
+    assert 'portfolio' in live_payload
+    assert 'selected_comments' in live_payload
 
 
 def test_tts_endpoint_generates_wav_file():

@@ -17,6 +17,41 @@ class StockSnapshot(BaseModel):
     ts: datetime
 
 
+class StockCommentary(BaseModel):
+    symbol: str
+    comment: str
+    action: Literal["持仓", "加仓", "减仓", "清仓"]
+
+
+class TradeRecord(BaseModel):
+    symbol: str
+    side: Literal["buy", "sell"]
+    qty: int
+    price: float
+    amount: float
+    ts: datetime
+
+
+class Position(BaseModel):
+    symbol: str
+    qty: int
+    avg_cost: float
+    market_price: float
+    market_value: float
+    pnl: float
+    pnl_pct: float
+
+
+class PortfolioSummary(BaseModel):
+    cash: float
+    equity: float
+    market_value: float
+    cumulative_return_pct: float
+    daily_realized_pnl: float
+    positions: list[Position]
+    todays_trades: list[TradeRecord]
+
+
 class CommentTask(BaseModel):
     source: Literal["auto", "audience"]
     symbol: str
@@ -81,8 +116,6 @@ class PlatformStatus(BaseModel):
     room_id: str
 
 
-
-
 class LiveStartRequest(BaseModel):
     platform: Literal["douyin", "kuaishou"]
     rtmp_url: str
@@ -93,9 +126,12 @@ class LiveStreamControlResponse(BaseModel):
     detail: str
     status: dict
 
+
 class LiveState(BaseModel):
     discussing: str
     snapshots: list[StockSnapshot]
     packet: ScriptPacket
     dialogues: list[DialogueTurn]
     platform_messages: list[PlatformMessage]
+    selected_comments: list[StockCommentary]
+    portfolio: PortfolioSummary

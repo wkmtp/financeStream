@@ -6,7 +6,7 @@ import json
 import os
 import urllib.request
 
-from app.models import AdviceResponse, DialogueTurn, RecommendationBoard, ScriptPacket, StockSnapshot
+from app.models import AdviceResponse, DialogueTurn, RecommendationBoard, ScriptPacket, StockCommentary, StockSnapshot
 
 
 class ScriptEngine:
@@ -45,6 +45,55 @@ class ScriptEngine:
             risk_disclaimer="仅供学习交流，不构成投资建议。",
             chart_focus_points=["分时均价", "成交量峰值", "MA5/MA20关系"],
         )
+
+    def generate_stock_commentaries(self, snapshots: list[StockSnapshot], recommendations: RecommendationBoard) -> list[StockCommentary]:
+        selected = [x.symbol for x in recommendations.add_positions[:5]] + [x.symbol for x in recommendations.reduce_positions[:5]]
+        by_symbol = {s.symbol: s for s in snapshots}
+        comments: list[StockCommentary] = []
+        for advice in recommendations.add_positions[:5] + recommendations.reduce_positions[:5]:
+            snap = by_symbol.get(advice.symbol)
+            if not snap:
+                continue
+            comment = self._commentary_for_stock(snap, advice.action)
+            comments.append(StockCommentary(symbol=snap.symbol, comment=comment, action=advice.action))
+        return comments
+
+    def _commentary_for_stock(self, snap: StockSnapshot, action: str) -> str:
+        generated = self._generate_commentary_by_deepseek(snap, action)
+        if generated:
+            return generated
+        return f"{snap.symbol} 涨跌{snap.change_pct}%，量比{snap.volume_ratio}，建议{action}，关注均线与量能变化。"
+
+    def _generate_commentary_by_deepseek(self, snap: StockSnapshot, action: str) -> str | None:
+        if not self.deepseek_api_url or not self.deepseek_api_key:
+            return None
+        prompt = (
+            "你是财经股评助手，请用一句中文短评点评个股，少token。"
+            f"股票={snap.symbol},价格={snap.price},涨跌={snap.change_pct},量比={snap.volume_ratio},MA5={snap.ma5},MA20={snap.ma20},MACD={snap.macd},建议动作={action}。"
+        )
+        payload = {
+            "model": self.deepseek_model,
+            "messages": [
+                {"role": "system", "content": "你是专业中文股票直播股评助手。"},
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.4,
+        }
+        req = urllib.request.Request(
+            self.deepseek_api_url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.deepseek_api_key}",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=self.deepseek_timeout) as response:
+                data = json.loads(response.read().decode("utf-8"))
+            return data["choices"][0]["message"]["content"].strip()
+        except Exception:
+            return None
 
     def _generate_by_deepseek(self, target: StockSnapshot) -> ScriptPacket | None:
         if not self.deepseek_api_url or not self.deepseek_api_key:

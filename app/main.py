@@ -24,6 +24,7 @@ from app.models import (
 from app.services.live_stream import LiveStreamService
 from app.services.market import MarketService
 from app.services.openclaw_interaction import OpenClawInteractionService
+from app.services.portfolio import PortfolioService
 from app.services.script_engine import ScriptEngine
 from app.services.tts_engine import TTSEngine
 
@@ -46,6 +47,7 @@ market = MarketService()
 script_engine = ScriptEngine()
 tts_engine = TTSEngine()
 platform_service = OpenClawInteractionService()
+portfolio_service = PortfolioService()
 live_stream_service = LiveStreamService()
 request_queue: deque[CommentTask] = deque(maxlen=settings.max_queue)
 
@@ -80,19 +82,45 @@ def verify_api_key(x_api_key: str | None) -> None:
         raise HTTPException(status_code=401, detail="invalid_api_key")
 
 
-def build_overlay_text() -> str:
+def _build_runtime_state() -> LiveState:
     rows = market.snapshot()
     hot = market.hot_stocks(rows, 3)
     audience_symbols = [task.symbol for task in request_queue]
     audience_symbols.extend(platform_service.extract_symbol_requests(limit=30))
     packet = script_engine.generate(hot_stocks=hot, audience_symbols=audience_symbols)
+    recommendations = script_engine.build_recommendations(rows)
+    portfolio_service.sync_day(recommendations.add_positions + recommendations.reduce_positions, rows)
+    portfolio = portfolio_service.summary(rows)
+    comments = script_engine.generate_stock_commentaries(rows, recommendations)
+    dialogues = script_engine.build_continuous_dialogue(rows, rounds=4)
+    messages = platform_service.list_messages(limit=10)
+    return LiveState(
+        discussing=packet.symbol,
+        snapshots=rows,
+        packet=packet,
+        dialogues=dialogues,
+        platform_messages=messages,
+        selected_comments=comments,
+        portfolio=portfolio,
+    )
+
+
+def build_overlay_text() -> str:
+    state = _build_runtime_state()
     stamp = datetime.utcnow().strftime("%H:%M:%S")
+    trade_text = ", ".join(f"{x.side}:{x.symbol}@{x.price}" for x in state.portfolio.todays_trades[:4]) or "今日暂无成交"
+    holding_text = ", ".join(f"{x.symbol}:{x.qty}股" for x in state.portfolio.positions[:4]) or "当前空仓"
+    comment_text = " | ".join(f"{x.symbol}:{x.comment}" for x in state.selected_comments[:3])
     return (
         f"AI Stock Live  {stamp}\n"
-        f"讨论标的: {packet.symbol}\n"
-        f"男主播: {packet.male_script}\n"
-        f"女主播: {packet.female_script}\n"
-        f"风险提示: {packet.risk_disclaimer}"
+        f"讨论标的: {state.packet.symbol}\n"
+        f"男主播: {state.packet.male_script}\n"
+        f"女主播: {state.packet.female_script}\n"
+        f"当日买卖: {trade_text}\n"
+        f"当前持仓: {holding_text}\n"
+        f"累计收益: {state.portfolio.cumulative_return_pct}%\n"
+        f"股评: {comment_text}\n"
+        f"风险提示: {state.packet.risk_disclaimer}"
     )
 
 
@@ -118,6 +146,7 @@ def health_ready():
             "script": script_engine is not None,
             "tts": tts_engine is not None,
             "platform": platform_service is not None,
+            "portfolio": portfolio_service is not None,
             "live_stream": live_stream_service is not None,
         },
     }
@@ -166,7 +195,8 @@ def hot_stocks(top_n: int = 3):
 def recommendations():
     rows = market.snapshot()
     board = script_engine.build_recommendations(rows)
-    return board.model_dump()
+    comments = script_engine.generate_stock_commentaries(rows, board)
+    return {**board.model_dump(), "comments": [x.model_dump() for x in comments]}
 
 
 @app.get("/api/advice/{symbol}")
@@ -174,6 +204,12 @@ def advice_for_symbol(symbol: str):
     rows = market.snapshot()
     advice = script_engine.advice_for_symbol(rows, symbol)
     return advice.model_dump()
+
+
+@app.get("/api/portfolio")
+def portfolio_state():
+    state = _build_runtime_state()
+    return state.portfolio.model_dump()
 
 
 @app.get("/api/platform/status")
@@ -221,12 +257,8 @@ def list_requests():
 
 @app.get("/api/script")
 def generate_script():
-    rows = market.snapshot()
-    hot = market.hot_stocks(rows, 3)
-    audience_symbols = [task.symbol for task in request_queue]
-    audience_symbols.extend(platform_service.extract_symbol_requests(limit=30))
-    packet = script_engine.generate(hot_stocks=hot, audience_symbols=audience_symbols)
-    return packet.model_dump()
+    state = _build_runtime_state()
+    return state.packet.model_dump()
 
 
 @app.post("/api/tts")
@@ -238,11 +270,4 @@ def tts(payload: TTSRequest, x_api_key: str | None = Header(default=None)):
 
 @app.get("/api/live/state", response_model=LiveState)
 def live_state():
-    rows = market.snapshot()
-    hot = market.hot_stocks(rows, 3)
-    audience_symbols = [task.symbol for task in request_queue]
-    audience_symbols.extend(platform_service.extract_symbol_requests(limit=30))
-    packet = script_engine.generate(hot_stocks=hot, audience_symbols=audience_symbols)
-    dialogues = script_engine.build_continuous_dialogue(rows, rounds=4)
-    messages = platform_service.list_messages(limit=10)
-    return LiveState(discussing=packet.symbol, snapshots=rows, packet=packet, dialogues=dialogues, platform_messages=messages)
+    return _build_runtime_state()
