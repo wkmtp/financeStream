@@ -18,9 +18,18 @@ pip install -r requirements.txt
 ./run.sh
 ```
 
+## 行情层配置状态
+
+当前已补齐：
+- `requirements.txt` 已包含 `akshare`；
+- 程序会自动尝试 `AkShare -> 东方财富 API -> local_fallback`；
+- 可通过 `GET /api/market/status` 或 `GET /health/ready` 查看行情源状态；
+- `GET /api/market/snapshot` 返回 `source_status`，每只股票快照也会返回 `source`。
+
 ## 核心接口
 
 - `GET /api/market/snapshot`：实时行情快照（AkShare/东方财富优先）
+- `GET /api/market/status`：行情源状态与命中来源统计
 - `GET /api/recommendations`：今日加仓/减仓推荐 + 每只入选股票股评
 - `GET /api/portfolio`：当日买卖、当前持仓、累计收益
 - `GET /api/live/state`：直播完整运行态（含股评与组合）

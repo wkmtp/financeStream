@@ -24,6 +24,8 @@ AkShare / 东方财富API / OpenClaw(抖音&快手)
 ## 2. 关键能力
 
 - AkShare / 东方财富 API 优先获取实时行情，失败时回退本地模拟
+- `GET /api/market/status` 暴露行情源状态、AkShare 安装情况和命中来源统计
+- `GET /api/market/snapshot` 返回每只股票 `source`
 - OpenClaw 负责抖音/快手互动
 - DeepSeek 负责双角色脚本和个股股评
 - Portfolio Engine 负责每天买卖、持仓和累计收益统计

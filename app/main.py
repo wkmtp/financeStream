@@ -143,6 +143,7 @@ def health_ready():
         "status": "ready",
         "services": {
             "market": market is not None,
+            "market_source_status": market.source_status(),
             "script": script_engine is not None,
             "tts": tts_engine is not None,
             "platform": platform_service is not None,
@@ -181,7 +182,12 @@ def stream_status():
 @app.get("/api/market/snapshot")
 def market_snapshot():
     rows = market.snapshot()
-    return {"items": [r.model_dump() for r in rows], "server_time": datetime.utcnow().isoformat()}
+    return {"items": [r.model_dump() for r in rows], "server_time": datetime.utcnow().isoformat(), "source_status": market.source_status(rows)}
+
+
+@app.get("/api/market/status")
+def market_status():
+    return market.source_status()
 
 
 @app.get("/api/hot")

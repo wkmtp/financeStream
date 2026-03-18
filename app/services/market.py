@@ -4,6 +4,7 @@ import json
 import random
 import urllib.parse
 import urllib.request
+from collections import Counter
 from datetime import datetime
 
 from app.models import StockSnapshot
@@ -33,6 +34,17 @@ class MarketService:
         rows = self._snapshot_from_akshare_or_eastmoney()
         return rows if rows else self._snapshot_fallback()
 
+    def source_status(self, snapshots: list[StockSnapshot] | None = None) -> dict:
+        rows = snapshots or self.snapshot()
+        counts = Counter(row.source for row in rows)
+        return {
+            "akshare_installed": self._ak is not None,
+            "eastmoney_enabled": True,
+            "snapshot_count": len(rows),
+            "source_counts": dict(counts),
+            "primary_mode": "akshare_then_eastmoney_then_fallback",
+        }
+
     def _snapshot_from_akshare_or_eastmoney(self) -> list[StockSnapshot]:
         rows: list[StockSnapshot] = []
         now = datetime.utcnow()
@@ -55,6 +67,7 @@ class MarketService:
                     ma5=ma5,
                     ma20=ma20,
                     macd=macd,
+                    source=record.get("source", "unknown"),
                     ts=now,
                 )
             )
@@ -159,6 +172,7 @@ class MarketService:
                     ma5=ma5,
                     ma20=ma20,
                     macd=macd,
+                    source="local_fallback",
                     ts=now,
                 )
             )

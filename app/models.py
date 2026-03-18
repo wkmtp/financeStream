@@ -14,6 +14,7 @@ class StockSnapshot(BaseModel):
     ma5: float
     ma20: float
     macd: float
+    source: str
     ts: datetime
 
 

@@ -21,6 +21,7 @@ def test_health_endpoints():
     assert ready.status_code == 200
     assert live.json()['status'] == 'live'
     assert ready.json()['status'] == 'ready'
+    assert 'market_source_status' in ready.json()['services']
 
 
 def test_live_stream_status_endpoint():
@@ -46,6 +47,16 @@ def test_market_snapshot():
     body = res.json()
     assert len(body['items']) >= 10
     assert 'server_time' in body
+    assert 'source_status' in body
+    assert 'source' in body['items'][0]
+
+
+def test_market_status():
+    res = client.get('/api/market/status')
+    assert res.status_code == 200
+    body = res.json()
+    assert 'akshare_installed' in body
+    assert 'source_counts' in body
 
 
 def test_recommendations_has_10_each_side_and_comments():
@@ -107,6 +118,7 @@ def test_audience_request_and_script_and_live_state():
     live_payload = live.json()
     assert 'portfolio' in live_payload
     assert 'selected_comments' in live_payload
+    assert 'source' in live_payload['snapshots'][0]
 
 
 def test_tts_endpoint_generates_wav_file():
