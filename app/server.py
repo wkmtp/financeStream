@@ -12,12 +12,19 @@ from fastapi import _dispatch
 from app.main import app, live_preview_service
 
 
+import base64
+
+
+FAVICON_ICO = base64.b64decode("AAABAAEAEBAAAAAAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAGAAAAAAAAAMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD///8A7u7uANzc3AC5ubkAn5+fAH5+fgBcXFwAPDw8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAAAAwAAAA8AAAB/AAAA/wAAA/8AAAf/AAAP/wAAD/8AAAf/AAAD/wAAAP8AAAB/AAAADwAAAAMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAAfwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/AAAA/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP8AAAD/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/wAAAP8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/AAAA/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP8AAAD/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/wAAAP8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/AAAA/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP8AAAD/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/wAAAP8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAH8AAAB/AAAAfwAAAH8AAAB/AAAAfwAAAH8AAAB/AAAAfwAAAH8AAAB/AAAAfwAAAH8AAAB/AAAAfwAAAH8=")
+
+
 LIVE_HTML = """<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AI 炒股直播间</title>
+  <link rel="icon" href="/favicon.ico" />
   <style>
     body { background:#020617; color:#e2e8f0; font-family:Arial,sans-serif; margin:0; }
     .wrap { max-width:1280px; margin:0 auto; padding:16px; }
@@ -107,6 +114,9 @@ class RequestHandler(BaseHTTPRequestHandler):
         if parsed.path == "/live":
             self._send_html(LIVE_HTML)
             return
+        if parsed.path == "/favicon.ico":
+            self._send_bytes(FAVICON_ICO, "image/x-icon")
+            return
         if parsed.path.startswith("/artifacts/"):
             self._send_static(parsed.path)
             return
@@ -137,9 +147,11 @@ class RequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def _send_html(self, payload: str):
-        data = payload.encode("utf-8")
+        self._send_bytes(payload.encode("utf-8"), "text/html; charset=utf-8")
+
+    def _send_bytes(self, data: bytes, content_type: str):
         self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
@@ -152,11 +164,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             return
         data = file_path.read_bytes()
         mime, _ = mimetypes.guess_type(str(file_path))
-        self.send_response(200)
-        self.send_header("Content-Type", mime or "application/octet-stream")
-        self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
+        self._send_bytes(data, mime or "application/octet-stream")
 
 
 def run(host: str = "0.0.0.0", port: int = 8000) -> None:

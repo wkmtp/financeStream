@@ -168,9 +168,9 @@ async def _apply_middlewares(app: FastAPI, request: Request, route: Route, path_
 
 def _dispatch(app: FastAPI, method: str, target: str, json_body: Any, headers: dict[str, str]):
     parsed = urlparse(target)
-    route, path_params = _match_route(app, method, parsed.path)
-    request = Request(method=method, url=URL(path=parsed.path), headers={k.lower(): v for k, v in headers.items()}, query_params={k: v[-1] for k, v in parse_qs(parsed.query).items()}, json=json_body)
     try:
+        route, path_params = _match_route(app, method, parsed.path)
+        request = Request(method=method, url=URL(path=parsed.path), headers={k.lower(): v for k, v in headers.items()}, query_params={k: v[-1] for k, v in parse_qs(parsed.query).items()}, json=json_body)
         result = asyncio.run(_apply_middlewares(app, request, route, path_params))
         return result.status_code, _serialize(result.content), result.headers
     except HTTPException as exc:
