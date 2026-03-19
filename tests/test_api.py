@@ -37,6 +37,8 @@ def test_live_preview_payload_and_assets():
     assert payload['frame_url'] == '/artifacts/live/frame.svg'
     assert payload['audio_url'] == '/artifacts/live/latest.wav'
     assert payload['news_items']
+    assert payload['narration_text']
+    assert payload['tts_engine'] in ['piper', 'gpt_sovits', 'tone_fallback']
     assert live_preview_service is not None
     status = live_preview_service.status()
     assert Path(status.frame_path).exists()
@@ -141,4 +143,5 @@ def test_tts_endpoint_generates_wav_file():
     out = Path(data['audio_path'])
     assert out.exists()
     assert out.suffix.lower() == '.wav'
+    assert out.name in ['female_latest.wav', 'male_latest.wav']
     assert data['engine_used'] in ['piper', 'gpt_sovits', 'tone_fallback']

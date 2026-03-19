@@ -3,11 +3,11 @@ from __future__ import annotations
 import json
 import math
 import os
+import shutil
 import struct
 import subprocess
 import urllib.request
 import wave
-from datetime import datetime
 from pathlib import Path
 
 
@@ -17,12 +17,10 @@ class TTSEngine:
     Engines:
     - GPT-SoVITS: high naturalness for key commentary.
     - Piper: fast/low-resource for realtime frequent interactions.
+    - tone_fallback: last-resort beep to keep file contract intact.
 
-    Routing:
-    - auto: short text -> Piper, long text -> GPT-SoVITS
-    - explicit engine: try selected first.
-    - if selected engine fails: fallback to the other engine.
-    - if both fail: fallback to local tone wav to keep stream alive.
+    To save disk space the engine reuses one output wav per speaker instead of
+    creating an unbounded timestamped history.
     """
 
     def __init__(self, out_dir: str = "artifacts/audio") -> None:
@@ -52,8 +50,8 @@ class TTSEngine:
         self.auto_short_text_threshold = int(os.getenv("TTS_AUTO_SHORT_TEXT_THRESHOLD", "56"))
 
     def synthesize(self, text: str, speaker: str, preferred_engine: str = "auto") -> tuple[str, str]:
-        ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S_%f")
-        output = self.out_dir / f"{speaker}_{ts}.wav"
+        output = self._speaker_output_path(speaker)
+        temp_output = output.with_suffix(".tmp.wav")
 
         engine = preferred_engine if preferred_engine != "auto" else self.default_engine
         primary, secondary = self._route_engines(text=text, engine=engine)
@@ -63,26 +61,40 @@ class TTSEngine:
                 continue
             try:
                 if candidate == "piper":
-                    self._call_piper(text=text, speaker=speaker, output=output)
+                    self._call_piper(text=text, speaker=speaker, output=temp_output)
                 elif candidate == "gpt_sovits":
-                    self._call_gpt_sovits(text=text, speaker=speaker, output=output)
+                    self._call_gpt_sovits(text=text, speaker=speaker, output=temp_output)
                 else:
                     continue
+                self._replace_output(temp_output, output)
                 return str(output), candidate
             except Exception:
+                self._cleanup_temp(temp_output)
                 continue
 
         duration_sec = max(1.2, min(6.0, len(text) / 24))
         frequency = 130.81 if speaker == "male" else 220.00
-        self._gen_tone(output, duration_sec, frequency)
+        self._gen_tone(temp_output, duration_sec, frequency)
+        self._replace_output(temp_output, output)
         return str(output), "tone_fallback"
+
+    def _speaker_output_path(self, speaker: str) -> Path:
+        return self.out_dir / f"{speaker}_latest.wav"
+
+    @staticmethod
+    def _cleanup_temp(path: Path) -> None:
+        if path.exists():
+            path.unlink()
+
+    def _replace_output(self, source: Path, output: Path) -> None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        source.replace(output)
 
     def _route_engines(self, text: str, engine: str) -> tuple[str, str | None]:
         if engine == "piper":
             return "piper", "gpt_sovits"
         if engine == "gpt_sovits":
             return "gpt_sovits", "piper"
-        # auto
         if len(text) <= self.auto_short_text_threshold:
             return "piper", "gpt_sovits"
         return "gpt_sovits", "piper"
@@ -140,7 +152,7 @@ class TTSEngine:
         if isinstance(data, dict) and data.get("audio_path"):
             audio_path = Path(data["audio_path"])
             if audio_path.exists():
-                output.write_bytes(audio_path.read_bytes())
+                shutil.copyfile(audio_path, output)
                 return
 
         raise RuntimeError("gpt-sovits returned unsupported payload")

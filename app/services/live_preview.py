@@ -51,6 +51,8 @@ class LivePreviewService:
         self._updated_at = ""
         self._last_script = ""
         self._last_symbol = ""
+        self._last_engine = "tone_fallback"
+        self._last_narration = ""
 
     def start(self) -> None:
         with self._lock:
@@ -94,6 +96,8 @@ class LivePreviewService:
             "todays_trades": [x.model_dump(mode="json") for x in state.portfolio.todays_trades[:8]],
             "positions": [x.model_dump(mode="json") for x in state.portfolio.positions[:8]],
             "cumulative_return_pct": state.portfolio.cumulative_return_pct,
+            "narration_text": self._last_narration,
+            "tts_engine": self._last_engine,
         }
 
     def _worker(self) -> None:
@@ -108,9 +112,11 @@ class LivePreviewService:
             self.frame_path.write_text(self._render_svg(state), encoding="utf-8")
             narration = self._build_narration(state)
             if narration != self._last_script or not self.audio_path.exists():
-                wav_path, _engine = self.tts_engine.synthesize(narration, speaker="female", preferred_engine="auto")
+                wav_path, engine_used = self.tts_engine.synthesize(narration, speaker="female", preferred_engine="auto")
                 shutil.copyfile(wav_path, self.audio_path)
                 self._last_script = narration
+                self._last_engine = engine_used
+                self._last_narration = narration
             self._updated_at = datetime.utcnow().isoformat()
         except Exception:
             self.frame_path.write_text(self._fallback_svg(), encoding="utf-8")

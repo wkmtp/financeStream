@@ -46,6 +46,7 @@ LIVE_HTML = """<!doctype html>
     <div class="card">
       <img id="frame" src="/artifacts/live/frame.svg" alt="直播画面" />
       <audio id="audio" controls autoplay src="/artifacts/live/latest.wav"></audio>
+      <p class="muted" id="tts-mode"></p>
     </div>
     <div class="card">
       <h3>当前解说</h3>
@@ -70,6 +71,19 @@ LIVE_HTML = """<!doctype html>
   </div>
 </div>
 <script>
+let lastNarration = "";
+
+function speakNarration(text) {
+  if (!window.speechSynthesis || !text || text === lastNarration) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "zh-CN";
+  utterance.rate = 1.02;
+  utterance.pitch = 1.0;
+  window.speechSynthesis.speak(utterance);
+  lastNarration = text;
+}
+
 async function refresh() {
   const res = await fetch('/api/live/preview');
   const data = await res.json();
@@ -86,10 +100,15 @@ async function refresh() {
   document.getElementById('female').textContent = '女主播：' + data.female_script;
   document.getElementById('risk').textContent = data.risk_disclaimer;
   document.getElementById('return').textContent = '累计收益：' + data.cumulative_return_pct + '%';
+  document.getElementById('tts-mode').textContent = '语音模式：' + data.tts_engine + (data.tts_engine === 'tone_fallback' ? '（已切换浏览器语音播报）' : '');
   document.getElementById('news').innerHTML = data.news_items.map(x => '<li>' + x + '</li>').join('');
   document.getElementById('trades').innerHTML = data.todays_trades.map(x => `<tr><td>${x.side}</td><td>${x.symbol}</td><td>${x.qty}</td><td>${x.price}</td></tr>`).join('') || '<tr><td colspan="4">暂无</td></tr>';
   document.getElementById('positions').innerHTML = data.positions.map(x => `<tr><td>${x.symbol}</td><td>${x.qty}</td><td>${x.pnl_pct}</td></tr>`).join('') || '<tr><td colspan="3">暂无</td></tr>';
+  if (data.tts_engine === 'tone_fallback') {
+    speakNarration(data.narration_text);
+  }
 }
+
 refresh();
 setInterval(refresh, 4000);
 </script>
