@@ -12,15 +12,10 @@ from pathlib import Path
 
 
 class TTSEngine:
-    """Dual-engine TTS adapter for Jetson Xavier NX.
+    """Dual-engine TTS adapter.
 
-    Engines:
-    - GPT-SoVITS: high naturalness for key commentary.
-    - Piper: fast/low-resource for realtime frequent interactions.
-    - tone_fallback: last-resort beep to keep file contract intact.
-
-    To save disk space the engine reuses one output wav per speaker instead of
-    creating an unbounded timestamped history.
+    Uses a small rotating pool of output files per speaker to avoid rewriting the
+    same file during active playback while still controlling disk usage.
     """
 
     def __init__(self, out_dir: str = "artifacts/audio") -> None:
@@ -28,7 +23,6 @@ class TTSEngine:
         self.out_dir.mkdir(parents=True, exist_ok=True)
         self.sample_rate = 22050
 
-        # GPT-SoVITS settings
         self.gpt_api_url = os.getenv("GPT_SOVITS_API_URL", "http://127.0.0.1:9880/tts")
         self.gpt_timeout_s = float(os.getenv("GPT_SOVITS_TIMEOUT", "20"))
         self.gpt_text_lang = os.getenv("GPT_SOVITS_TEXT_LANG", "zh")
@@ -38,7 +32,6 @@ class TTSEngine:
         self.prompt_text_male = os.getenv("GPT_SOVITS_PROMPT_TEXT_MALE", "")
         self.prompt_text_female = os.getenv("GPT_SOVITS_PROMPT_TEXT_FEMALE", "")
 
-        # Piper settings
         self.piper_bin = os.getenv("PIPER_BIN", "piper")
         self.piper_model_male = os.getenv("PIPER_MODEL_MALE", "")
         self.piper_model_female = os.getenv("PIPER_MODEL_FEMALE", "")
@@ -46,11 +39,13 @@ class TTSEngine:
         self.piper_config_female = os.getenv("PIPER_CONFIG_FEMALE", "")
         self.piper_timeout_s = float(os.getenv("PIPER_TIMEOUT", "12"))
 
-        self.default_engine = os.getenv("TTS_DEFAULT_ENGINE", "auto")  # auto|piper|gpt_sovits
+        self.default_engine = os.getenv("TTS_DEFAULT_ENGINE", "auto")
         self.auto_short_text_threshold = int(os.getenv("TTS_AUTO_SHORT_TEXT_THRESHOLD", "56"))
+        self.pool_size = max(2, int(os.getenv("TTS_FILE_POOL_SIZE", "3")))
+        self._pool_index = {"male": 0, "female": 0}
 
     def synthesize(self, text: str, speaker: str, preferred_engine: str = "auto") -> tuple[str, str]:
-        output = self._speaker_output_path(speaker)
+        output = self._next_output_path(speaker)
         temp_output = output.with_suffix(".tmp.wav")
 
         engine = preferred_engine if preferred_engine != "auto" else self.default_engine
@@ -69,7 +64,8 @@ class TTSEngine:
                 self._replace_output(temp_output, output)
                 return str(output), candidate
             except Exception:
-                self._cleanup_temp(temp_output)
+                if temp_output.exists():
+                    temp_output.unlink()
                 continue
 
         duration_sec = max(1.2, min(6.0, len(text) / 24))
@@ -78,13 +74,11 @@ class TTSEngine:
         self._replace_output(temp_output, output)
         return str(output), "tone_fallback"
 
-    def _speaker_output_path(self, speaker: str) -> Path:
-        return self.out_dir / f"{speaker}_latest.wav"
-
-    @staticmethod
-    def _cleanup_temp(path: Path) -> None:
-        if path.exists():
-            path.unlink()
+    def _next_output_path(self, speaker: str) -> Path:
+        key = "male" if speaker == "male" else "female"
+        idx = self._pool_index[key]
+        self._pool_index[key] = (idx + 1) % self.pool_size
+        return self.out_dir / f"{key}_slot_{idx}.wav"
 
     def _replace_output(self, source: Path, output: Path) -> None:
         output.parent.mkdir(parents=True, exist_ok=True)

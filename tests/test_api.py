@@ -35,7 +35,7 @@ def test_live_preview_payload_and_assets():
     assert res.status_code == 200
     payload = res.json()
     assert payload['frame_url'] == '/artifacts/live/frame.svg'
-    assert payload['audio_url'] == '/artifacts/live/latest.wav'
+    assert payload['audio_url'].startswith('/artifacts/live/live_audio_')
     assert payload['news_items']
     assert payload['narration_text']
     assert payload['tts_engine'] in ['piper', 'gpt_sovits', 'tone_fallback']
@@ -64,6 +64,7 @@ def test_market_snapshot():
     assert 'server_time' in body
     assert 'source_status' in body
     assert 'source' in body['items'][0]
+    assert all(x['symbol'].endswith('.SH') or x['symbol'].endswith('.SZ') for x in body['items'])
 
 
 def test_market_status():
@@ -143,5 +144,5 @@ def test_tts_endpoint_generates_wav_file():
     out = Path(data['audio_path'])
     assert out.exists()
     assert out.suffix.lower() == '.wav'
-    assert out.name in ['female_latest.wav', 'male_latest.wav']
+    assert out.name.startswith(('female_slot_', 'male_slot_'))
     assert data['engine_used'] in ['piper', 'gpt_sovits', 'tone_fallback']

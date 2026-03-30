@@ -1,15 +1,15 @@
 # AI 炒股直播软件（Jetson Xavier NX）
 
 这是一个可运行并可发布的**动态直播预览 + 推流**版本：
-- 行情层采用 **AkShare + 东方财富 API** 优先获取实时行情，失败时回退本地模拟；
+- 行情层采用 **东方财富 API** 批量获取实时行情（仅中国大陆A股与ETF），失败时回退本地模拟；
 - 互动层采用 **OpenClaw** 对接抖音 + 快手弹幕与回复；
-- 推理层采用 **DeepSeek** 生成双角色讲解与每只入选股票的股评；
+- 推理层采用 **DeepSeek** 进行短线分析与双角色讲解，提示词精简以减少 token；
 - 交易层自动生成每日买进/卖出/持仓，并统计累计收益；
 - 背景叠字实时展示：讨论标的、双角色话术、当日买卖、当前持仓、累计收益、个股股评；
 - TTS 采用 Piper + GPT-SoVITS 双引擎自动路由；
 - `./run.sh` 启动后可直接访问 `/live` 查看带图像与语音的直播预览；同时保留 FFmpeg RTMP 推流能力。
 - 当本地 Piper / GPT-SoVITS 不可用时，页面会自动切换为浏览器语音播报，避免只播放嗡嗡声。
-- TTS 输出默认复用 `male_latest.wav` / `female_latest.wav`，不再为每次播报永久保留新文件，节约磁盘空间。
+- 语音文件采用循环槽位（如 `female_slot_0.wav` ~ `female_slot_2.wav`），避免播放未完成就被重写，并节约磁盘空间。
 
 ## 快速启动
 
@@ -23,8 +23,8 @@ pip install -r requirements.txt
 ## 行情层配置状态
 
 当前已补齐：
-- `requirements.txt` 已包含 `akshare`；
-- 程序会自动尝试 `AkShare -> 东方财富 API -> local_fallback`；
+- 程序通过东方财富批量接口优先拉取A股与ETF；
+- 当实时接口异常时自动回退本地模拟数据，保证直播不断流；
 - 可通过 `GET /api/market/status` 或 `GET /health/ready` 查看行情源状态；
 - `GET /api/market/snapshot` 返回 `source_status`，每只股票快照也会返回 `source`。
 
@@ -32,7 +32,7 @@ pip install -r requirements.txt
 
 ## 核心接口
 
-- `GET /api/market/snapshot`：实时行情快照（AkShare/东方财富优先）
+- `GET /api/market/snapshot`：A股与ETF实时行情快照（东方财富优先）
 - `GET /api/market/status`：行情源状态与命中来源统计
 - `GET /api/recommendations`：今日加仓/减仓推荐 + 每只入选股票股评
 - `GET /api/portfolio`：当日买卖、当前持仓、累计收益

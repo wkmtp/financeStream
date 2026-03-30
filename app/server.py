@@ -75,13 +75,13 @@ let lastNarration = "";
 
 function speakNarration(text) {
   if (!window.speechSynthesis || !text || text === lastNarration) return;
-  window.speechSynthesis.cancel();
+  if (window.speechSynthesis.speaking || window.speechSynthesis.pending) return;
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = "zh-CN";
   utterance.rate = 1.02;
   utterance.pitch = 1.0;
+  utterance.onend = () => { lastNarration = text; };
   window.speechSynthesis.speak(utterance);
-  lastNarration = text;
 }
 
 async function refresh() {
@@ -90,9 +90,7 @@ async function refresh() {
   document.getElementById('frame').src = data.frame_url + '?t=' + Date.now();
   const audio = document.getElementById('audio');
   const nextAudio = data.audio_url + '?t=' + Date.now();
-  if (!audio.src || !audio.src.includes(nextAudio.split('?')[0])) {
-    audio.src = nextAudio;
-  } else {
+  if (!audio.src || !audio.src.includes(data.audio_url)) {
     audio.src = nextAudio;
   }
   document.getElementById('symbol').textContent = '当前标的：' + data.symbol;

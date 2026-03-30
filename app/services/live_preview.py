@@ -42,7 +42,6 @@ class LivePreviewService:
         self.out_dir = Path(out_dir)
         self.out_dir.mkdir(parents=True, exist_ok=True)
         self.frame_path = self.out_dir / "frame.svg"
-        self.audio_path = self.out_dir / "latest.wav"
         self.status_path = self.out_dir / "preview_status.json"
 
         self._thread: threading.Thread | None = None
@@ -53,6 +52,9 @@ class LivePreviewService:
         self._last_symbol = ""
         self._last_engine = "tone_fallback"
         self._last_narration = ""
+        self._audio_pool_size = 3
+        self._audio_index = 0
+        self._current_audio = "live_audio_0.wav"
 
     def start(self) -> None:
         with self._lock:
@@ -73,7 +75,7 @@ class LivePreviewService:
             running=self._thread is not None and self._thread.is_alive(),
             updated_at=self._updated_at,
             frame_path=str(self.frame_path),
-            audio_path=str(self.audio_path),
+            audio_path=str(self.out_dir / self._current_audio),
             symbol=self._last_symbol,
         )
 
@@ -87,7 +89,7 @@ class LivePreviewService:
             "updated_at": status.updated_at,
             "symbol": state.discussing,
             "frame_url": "/artifacts/live/frame.svg",
-            "audio_url": "/artifacts/live/latest.wav",
+            "audio_url": f"/artifacts/live/{self._current_audio}",
             "male_script": state.packet.male_script,
             "female_script": state.packet.female_script,
             "risk_disclaimer": state.packet.risk_disclaimer,
@@ -111,9 +113,12 @@ class LivePreviewService:
             self._last_symbol = state.discussing
             self.frame_path.write_text(self._render_svg(state), encoding="utf-8")
             narration = self._build_narration(state)
-            if narration != self._last_script or not self.audio_path.exists():
+            if narration != self._last_script:
                 wav_path, engine_used = self.tts_engine.synthesize(narration, speaker="female", preferred_engine="auto")
-                shutil.copyfile(wav_path, self.audio_path)
+                self._audio_index = (self._audio_index + 1) % self._audio_pool_size
+                self._current_audio = f"live_audio_{self._audio_index}.wav"
+                target = self.out_dir / self._current_audio
+                shutil.copyfile(wav_path, target)
                 self._last_script = narration
                 self._last_engine = engine_used
                 self._last_narration = narration
@@ -123,11 +128,11 @@ class LivePreviewService:
 
     def _build_narration(self, state: LiveState) -> str:
         return (
-            f"当前短线关注{state.packet.symbol}。"
-            f"男主播观点：{state.packet.male_script}。"
-            f"女主播观点：{state.packet.female_script}。"
+            f"当前关注{state.packet.symbol}。"
+            f"观点一：{state.packet.male_script}。"
+            f"观点二：{state.packet.female_script}。"
             f"累计收益{state.portfolio.cumulative_return_pct}%。"
-            f"风险提示：{state.packet.risk_disclaimer}"
+            f"风险提示：{state.packet.risk_disclaimer}。"
         )
 
     def _news_items(self, state: LiveState) -> list[str]:
@@ -148,7 +153,7 @@ class LivePreviewService:
         hot_lines = [f"{snap.symbol} {snap.change_pct}%" for snap in self.market_service.hot_stocks(state.snapshots, top_n=5)]
         stamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
 
-        def text_block(lines: list[str], x: int, y: int, width: int, cls: str = "body") -> str:
+        def text_block(lines: list[str], x: int, y: int, cls: str = "body") -> str:
             rows = []
             for idx, line in enumerate(lines):
                 safe = html.escape(line[:72])
@@ -160,10 +165,6 @@ class LivePreviewService:
     .title {{ font: 700 28px sans-serif; fill: #f8fafc; }}
     .sub {{ font: 600 18px sans-serif; fill: #7dd3fc; }}
     .body {{ font: 16px sans-serif; fill: #e2e8f0; }}
-    .small {{ font: 14px sans-serif; fill: #cbd5e1; }}
-    .accent {{ font: 700 20px sans-serif; fill: #fbbf24; }}
-    .good {{ fill: #22c55e; }}
-    .bad {{ fill: #ef4444; }}
     .panel {{ fill: #0f172a; stroke: #334155; stroke-width: 1; rx: 18; }}
   </style>
   <rect width="1280" height="720" fill="#020617"/>
@@ -178,11 +179,11 @@ class LivePreviewService:
   <line x1="50" y1="390" x2="780" y2="390" stroke="#475569" stroke-width="1"/>
   <line x1="50" y1="150" x2="50" y2="390" stroke="#475569" stroke-width="1"/>
   <text class="sub" x="850" y="56">主播语音播报</text>
-  {text_block([f'男主播：{state.packet.male_script}', f'女主播：{state.packet.female_script}', f'风险提示：{state.packet.risk_disclaimer}'], 850, 92, 390)}
+  {text_block([f'男主播：{state.packet.male_script}', f'女主播：{state.packet.female_script}', f'风险提示：{state.packet.risk_disclaimer}'], 850, 92)}
   <text class="sub" x="850" y="338">资讯 / 互动</text>
-  {text_block(news_items, 850, 376, 390)}
+  {text_block(news_items, 850, 376)}
   <text class="sub" x="40" y="488">自动交易与持仓</text>
-  {text_block(['当日交易:'] + trade_lines + ['当前持仓:'] + position_lines + ['短线热股:'] + hot_lines, 40, 524, 720)}
+  {text_block(['当日交易:'] + trade_lines + ['当前持仓:'] + position_lines + ['短线热股:'] + hot_lines, 40, 524)}
 </svg>'''
 
     @staticmethod
@@ -192,10 +193,7 @@ class LivePreviewService:
         min_v = min(values)
         max_v = max(values)
         spread = max(max_v - min_v, 1e-6)
-        left = 60
-        top = 170
-        width = 700
-        height = 190
+        left, top, width, height = 60, 170, 700, 190
         step = width / max(len(values) - 1, 1)
         points = []
         for idx, value in enumerate(values):
