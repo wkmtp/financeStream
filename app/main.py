@@ -4,7 +4,7 @@ import logging
 import time
 import uuid
 from collections import deque
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -51,6 +51,7 @@ platform_service = OpenClawInteractionService()
 portfolio_service = PortfolioService()
 live_stream_service = LiveStreamService()
 request_queue: deque[CommentTask] = deque(maxlen=settings.max_queue)
+BJ_TZ = timezone(timedelta(hours=8))
 
 
 @app.middleware("http")
@@ -111,7 +112,7 @@ live_preview_service: LivePreviewService | None = None
 
 def build_overlay_text() -> str:
     state = _build_runtime_state()
-    stamp = datetime.utcnow().strftime("%H:%M:%S")
+    stamp = datetime.now(BJ_TZ).strftime("%H:%M:%S")
     trade_text = ", ".join(f"{x.side}:{x.symbol}@{x.price}" for x in state.portfolio.todays_trades[:4]) or "今日暂无成交"
     holding_text = ", ".join(f"{x.symbol}:{x.qty}股" for x in state.portfolio.positions[:4]) or "当前空仓"
     comment_text = " | ".join(f"{x.symbol}:{x.comment}" for x in state.selected_comments[:3])
@@ -195,7 +196,7 @@ def stream_status():
 @app.get("/api/market/snapshot")
 def market_snapshot():
     rows = market.snapshot()
-    return {"items": [r.model_dump() for r in rows], "server_time": datetime.utcnow().isoformat(), "source_status": market.source_status(rows)}
+    return {"items": [r.model_dump() for r in rows], "server_time": datetime.now(BJ_TZ).isoformat(), "source_status": market.source_status(rows)}
 
 
 @app.get("/api/market/status")

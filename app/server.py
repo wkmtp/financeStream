@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import mimetypes
 import os
@@ -11,115 +12,106 @@ from fastapi import _dispatch
 
 from app.main import app, live_preview_service
 
-
-import base64
-
-
 FAVICON_ICO = base64.b64decode("AAABAAEAEBAAAAAAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAGAAAAAAAAAMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD///8A7u7uANzc3AC5ubkAn5+fAH5+fgBcXFwAPDw8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAAAAwAAAA8AAAB/AAAA/wAAA/8AAAf/AAAP/wAAD/8AAAf/AAAD/wAAAP8AAAB/AAAADwAAAAMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAAfwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/AAAA/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP8AAAD/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/wAAAP8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/AAAA/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP8AAAD/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/wAAAP8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/AAAA/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP8AAAD/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/wAAAP8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAH8AAAB/AAAAfwAAAH8AAAB/AAAAfwAAAH8AAAB/AAAAfwAAAH8AAAB/AAAAfwAAAH8AAAB/AAAAfwAAAH8=")
-
 
 LIVE_HTML = """<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AI 炒股直播间</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>A股ETF交易直播</title>
   <link rel="icon" href="/favicon.ico" />
   <style>
-    body { background:#020617; color:#e2e8f0; font-family:Arial,sans-serif; margin:0; }
-    .wrap { max-width:1280px; margin:0 auto; padding:16px; }
-    .grid { display:grid; grid-template-columns: 2fr 1fr; gap:16px; }
-    .card { background:#0f172a; border:1px solid #334155; border-radius:16px; padding:16px; }
-    img { width:100%; border-radius:12px; background:#111827; }
-    audio { width:100%; margin-top:12px; }
-    ul { padding-left:18px; }
-    table { width:100%; border-collapse:collapse; }
-    td,th { border-bottom:1px solid #334155; padding:8px; text-align:left; }
-    .muted { color:#94a3b8; }
+    body { margin:0; background:#020617; color:#e2e8f0; font-family:system-ui,Arial,sans-serif; }
+    .wrap { max-width:480px; margin:0 auto; padding:10px; }
+    .card { background:#0f172a; border:1px solid #334155; border-radius:14px; padding:12px; margin-bottom:10px; }
+    .title { font-size:20px; font-weight:700; margin:0 0 6px 0; }
+    .sub { color:#93c5fd; font-size:13px; margin:4px 0; }
+    img { width:100%; border-radius:10px; background:#111827; }
+    audio { width:100%; margin-top:8px; }
+    ul { padding-left:18px; margin:6px 0; }
+    li { margin:3px 0; font-size:13px; }
   </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>AI 实时炒股直播间</h1>
-  <p class="muted">实时短线选股、自动交易、图像+语音直播预览</p>
-  <div class="grid">
-    <div class="card">
-      <img id="frame" src="/artifacts/live/frame.svg" alt="直播画面" />
-      <audio id="audio" controls autoplay src="/artifacts/live/latest.wav"></audio>
-      <p class="muted" id="tts-mode"></p>
-    </div>
-    <div class="card">
-      <h3>当前解说</h3>
-      <p id="symbol"></p>
-      <p id="male"></p>
-      <p id="female"></p>
-      <p id="risk" class="muted"></p>
-      <h3>资讯</h3>
-      <ul id="news"></ul>
-    </div>
+  <div class="card">
+    <p class="title">A股ETF智能交易直播</p>
+    <p class="sub" id="stamp"></p>
+    <img id="frame" src="/artifacts/live/frame.svg" alt="直播画面" />
+    <audio id="audio" controls autoplay loop src="/artifacts/live/live_audio_0.wav"></audio>
+    <p class="sub" id="tts-mode"></p>
   </div>
-  <div class="grid" style="margin-top:16px;">
-    <div class="card">
-      <h3>当日交易</h3>
-      <table><thead><tr><th>方向</th><th>股票</th><th>数量</th><th>价格</th></tr></thead><tbody id="trades"></tbody></table>
-    </div>
-    <div class="card">
-      <h3>当前持仓</h3>
-      <div id="return"></div>
-      <table><thead><tr><th>股票</th><th>数量</th><th>浮盈%</th></tr></thead><tbody id="positions"></tbody></table>
-    </div>
+
+  <div class="card">
+    <p class="title">买卖建议</p>
+    <p id="symbol"></p>
+    <ul id="analysis"></ul>
+    <p class="sub" id="risk"></p>
+  </div>
+
+  <div class="card">
+    <p class="title">持仓与收益</p>
+    <p id="ret"></p>
+    <ul id="positions"></ul>
   </div>
 </div>
+
 <script>
 let lastNarration = "";
+function pickZhVoice() {
+  if (!window.speechSynthesis || !window.speechSynthesis.getVoices) return null;
+  const voices = window.speechSynthesis.getVoices() || [];
+  return voices.find(v => {
+    const lang = (v.lang || '').toLowerCase();
+    const name = (v.name || '').toLowerCase();
+    return lang.includes('zh') || lang.includes('cmn') || name.includes('chinese') || name.includes('mandarin') || name.includes('xiaoxiao') || name.includes('yunxi');
+  }) || null;
+}
 
 function speakNarration(text) {
   if (!window.speechSynthesis || !text || text === lastNarration) return;
   if (window.speechSynthesis.speaking || window.speechSynthesis.pending) return;
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "zh-CN";
-  const voices = window.speechSynthesis.getVoices ? window.speechSynthesis.getVoices() : [];
-  const zhVoice = voices.find(v => {
-    const lang = (v.lang || '').toLowerCase();
-    const name = (v.name || '').toLowerCase();
-    return lang.includes('zh') || lang.includes('cmn') || name.includes('chinese') || name.includes('mandarin');
-  });
-  if (zhVoice) {
-    utterance.voice = zhVoice;
-    utterance.lang = zhVoice.lang || 'zh-CN';
-  }
+  utterance.lang = 'zh-CN';
+  const v = pickZhVoice();
+  if (v) { utterance.voice = v; utterance.lang = v.lang || 'zh-CN'; }
   utterance.rate = 1.0;
   utterance.pitch = 1.0;
   utterance.onend = () => { lastNarration = text; };
   window.speechSynthesis.speak(utterance);
 }
-window.speechSynthesis && (window.speechSynthesis.onvoiceschanged = () => {});
 
 async function refresh() {
   const res = await fetch('/api/live/preview');
   const data = await res.json();
   document.getElementById('frame').src = data.frame_url + '?t=' + Date.now();
+
   const audio = document.getElementById('audio');
   const nextAudio = data.audio_url + '?t=' + Date.now();
   if (!audio.src || !audio.src.includes(data.audio_url)) {
     audio.src = nextAudio;
+    audio.play().catch(() => {});
   }
-  document.getElementById('symbol').textContent = '当前标的：' + data.symbol;
-  document.getElementById('male').textContent = '男主播：' + data.male_script;
-  document.getElementById('female').textContent = '女主播：' + data.female_script;
-  document.getElementById('risk').textContent = data.risk_disclaimer;
-  document.getElementById('return').textContent = '累计收益：' + data.cumulative_return_pct + '%';
-  document.getElementById('tts-mode').textContent = '语音模式：' + data.tts_engine + (data.tts_engine === 'tone_fallback' ? '（已切换浏览器语音播报）' : '');
-  document.getElementById('news').innerHTML = data.news_items.map(x => '<li>' + x + '</li>').join('');
-  document.getElementById('trades').innerHTML = data.todays_trades.map(x => `<tr><td>${x.side}</td><td>${x.symbol}</td><td>${x.qty}</td><td>${x.price}</td></tr>`).join('') || '<tr><td colspan="4">暂无</td></tr>';
-  document.getElementById('positions').innerHTML = data.positions.map(x => `<tr><td>${x.symbol}</td><td>${x.qty}</td><td>${x.pnl_pct}</td></tr>`).join('') || '<tr><td colspan="3">暂无</td></tr>';
+
+  document.getElementById('stamp').textContent = '北京时间：' + (data.updated_at || '');
+  document.getElementById('symbol').textContent = '标的：' + data.symbol;
+  document.getElementById('risk').textContent = '风控：' + data.risk_disclaimer;
+  document.getElementById('tts-mode').textContent = '语音模式：' + data.tts_engine;
+  document.getElementById('analysis').innerHTML = [
+    '建议一：' + data.male_script,
+    '建议二：' + data.female_script
+  ].map(x => '<li>' + x + '</li>').join('');
+  document.getElementById('ret').textContent = '累计收益：' + data.cumulative_return_pct + '%';
+  document.getElementById('positions').innerHTML = (data.positions || []).map(x => '<li>' + x.symbol + ' ' + x.qty + '股 浮盈' + x.pnl_pct + '%</li>').join('') || '<li>暂无持仓</li>';
+
   if (data.tts_engine === 'tone_fallback') {
     speakNarration(data.narration_text);
   }
 }
 
 refresh();
-setInterval(refresh, 4000);
+setInterval(refresh, 3500);
 </script>
 </body>
 </html>"""
@@ -155,13 +147,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             raw = self.rfile.read(length) if length else b"{}"
             body = json.loads(raw.decode("utf-8") or "{}")
 
-        status, payload, headers = _dispatch(
-            app,
-            method,
-            self.path,
-            body,
-            {key: value for key, value in self.headers.items()},
-        )
+        status, payload, headers = _dispatch(app, method, self.path, body, {k: v for k, v in self.headers.items()})
         self._send_json(status, payload, headers)
 
     def _send_json(self, status: int, payload, headers: dict):

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import urllib.parse
 import urllib.request
 from collections import Counter
 from datetime import datetime
@@ -70,13 +71,57 @@ class ScriptEngine:
         }
         return self._deepseek_text(payload)
 
+
+    def _eastmoney_context(self, symbol: str) -> dict[str, float]:
+        code, market = symbol.split('.')
+        secid = f"1.{code}" if market == "SH" else f"0.{code}"
+        kline_change = 0.0
+        main_flow = 0.0
+        try:
+            params = urllib.parse.urlencode({
+                "secid": secid,
+                "klt": "101",
+                "fqt": "1",
+                "lmt": "5",
+                "fields1": "f1,f2,f3,f4,f5,f6",
+                "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61",
+            })
+            with urllib.request.urlopen(f"https://push2his.eastmoney.com/api/qt/stock/kline/get?{params}", timeout=5) as response:
+                data = json.loads(response.read().decode("utf-8")).get("data", {})
+            klines = data.get("klines") or []
+            if klines:
+                parts = str(klines[-1]).split(',')
+                if len(parts) > 8:
+                    kline_change = float(parts[8])
+        except Exception:
+            pass
+        try:
+            params = urllib.parse.urlencode({
+                "lmt": "1",
+                "klt": "1",
+                "secid": secid,
+                "fields1": "f1,f2,f3",
+                "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f62,f63,f64,f65",
+            })
+            with urllib.request.urlopen(f"https://push2.eastmoney.com/api/qt/stock/fflow/kline/get?{params}", timeout=5) as response:
+                data = json.loads(response.read().decode("utf-8")).get("data", {})
+            flows = data.get("klines") or []
+            if flows:
+                parts = str(flows[-1]).split(',')
+                if len(parts) > 1:
+                    main_flow = float(parts[1])
+        except Exception:
+            pass
+        return {"kline_change": round(kline_change, 2), "main_flow": round(main_flow, 2)}
+
     def _generate_by_deepseek(self, target: StockSnapshot) -> ScriptPacket | None:
         if not self.deepseek_api_url or not self.deepseek_api_key:
             return None
+        ctx = self._eastmoney_context(target.symbol)
         prompt = (
             "输出JSON:{male_script,female_script,risk_disclaimer,chart_focus_points}。"
-            f"标的{target.symbol},价{target.price},涨跌{target.change_pct},量比{target.volume_ratio},MACD{target.macd}。"
-            "短句省token。"
+            f"标的{target.symbol},价{target.price},涨跌{target.change_pct},量比{target.volume_ratio},MACD{target.macd},K线涨跌{ctx['kline_change']},主力净流入{ctx['main_flow']}。"
+            "给出买卖建议并分析，短句省token。"
         )
         payload = {
             "model": self.deepseek_model,
@@ -160,7 +205,8 @@ class ScriptEngine:
         if not snap:
             return AdviceResponse(symbol=symbol.upper(), action="持仓", score=0.0, reason="不在A股ETF池")
 
-        score = round(snap.change_pct * 0.45 + snap.volume_ratio * 0.3 + snap.macd * 0.25, 3)
+        ctx = self._eastmoney_context(snap.symbol)
+        score = round(snap.change_pct * 0.4 + snap.volume_ratio * 0.25 + snap.macd * 0.2 + ctx["kline_change"] * 0.1 + (0.6 if ctx["main_flow"] > 0 else -0.6), 3)
         if score >= 1.4:
             action, reason = "加仓", "趋势强，分批加仓"
         elif score >= 0.2:
