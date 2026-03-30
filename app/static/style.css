@@ -1,0 +1,24 @@
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  margin: 0;
+  background: #0d1321;
+  color: #f0f4ff;
+}
+header { padding: 18px 22px; background: #1d2d44; }
+#platform-status { margin-top: 8px; color: #90e0ef; font-size: 0.95rem; }
+main {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(320px, 1fr));
+  gap: 12px;
+  padding: 12px;
+}
+.panel { background: #1b263b; border-radius: 12px; padding: 14px; }
+.bubble { margin: 10px 0; padding: 10px; border-radius: 8px; }
+.male { background: #2d6a4f; }
+.female { background: #6a4c93; }
+.risk { color: #ffb703; font-size: 0.95rem; }
+form { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+input, button, select { padding: 8px; border-radius: 6px; border: none; }
+button { background: #778da9; color: white; cursor: pointer; }
+#queue li, #add-list li, #reduce-list li, #dialogue-list li, #platform-messages li { margin: 6px 0; font-size: 0.92rem; }
+#advice-result { margin-top: 8px; color: #9bf6ff; }

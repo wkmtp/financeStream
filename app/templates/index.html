@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI 炒股直播控制台</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body>
+    <header>
+      <h1>AI 炒股直播控制台</h1>
+      <p>抖音 + 快手双平台同步直播互动</p>
+      <div id="platform-status"></div>
+    </header>
+
+    <main>
+      <section class="panel">
+        <h2>当前讨论</h2>
+        <div id="discussing">--</div>
+        <ul id="focus"></ul>
+      </section>
+
+      <section class="panel">
+        <h2>角色播报</h2>
+        <div class="bubble male"><strong>男主播：</strong><span id="male">加载中...</span></div>
+        <div class="bubble female"><strong>女主播：</strong><span id="female">加载中...</span></div>
+        <div class="risk" id="risk"></div>
+      </section>
+
+      <section class="panel">
+        <h2>实时涨跌幅曲线</h2>
+        <canvas id="curve"></canvas>
+      </section>
+
+      <section class="panel">
+        <h2>双平台互动弹幕</h2>
+        <ul id="platform-messages"></ul>
+        <form id="platform-reply-form">
+          <select id="reply-platform">
+            <option value="douyin">douyin</option>
+            <option value="kuaishou">kuaishou</option>
+          </select>
+          <input id="reply-user" placeholder="回复给谁" required />
+          <input id="reply-text" placeholder="回复内容" required />
+          <button type="submit">发送回复</button>
+        </form>
+      </section>
+
+      <section class="panel">
+        <h2>观众点股</h2>
+        <form id="req-form">
+          <input id="symbol" placeholder="例如 600519.SH" required />
+          <input id="user" placeholder="昵称" />
+          <button type="submit">提交</button>
+        </form>
+        <ul id="queue"></ul>
+      </section>
+
+      <section class="panel">
+        <h2>今日建议加仓 10 支</h2>
+        <ul id="add-list"></ul>
+      </section>
+
+      <section class="panel">
+        <h2>今日建议减仓 10 支</h2>
+        <ul id="reduce-list"></ul>
+      </section>
+
+      <section class="panel">
+        <h2>个股问答建议（持仓/加仓/减仓/清仓）</h2>
+        <form id="advice-form">
+          <input id="advice-symbol" placeholder="输入股票代码" required />
+          <button type="submit">查询</button>
+        </form>
+        <div id="advice-result"></div>
+      </section>
+
+      <section class="panel">
+        <h2>不间断互动（低 token）</h2>
+        <ul id="dialogue-list"></ul>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
