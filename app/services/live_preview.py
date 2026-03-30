@@ -127,13 +127,23 @@ class LivePreviewService:
             self.frame_path.write_text(self._fallback_svg(), encoding="utf-8")
 
     def _build_narration(self, state: LiveState) -> str:
+        symbol_cn = self._symbol_to_zh(state.packet.symbol)
         return (
-            f"当前关注{state.packet.symbol}。"
+            f"当前关注股票代码{symbol_cn}。"
             f"观点一：{state.packet.male_script}。"
             f"观点二：{state.packet.female_script}。"
-            f"累计收益{state.portfolio.cumulative_return_pct}%。"
+            f"累计收益{state.portfolio.cumulative_return_pct}百分比。"
             f"风险提示：{state.packet.risk_disclaimer}。"
         )
+
+    @staticmethod
+    def _symbol_to_zh(symbol: str) -> str:
+        mapping = {
+            "0": "零", "1": "一", "2": "二", "3": "三", "4": "四",
+            "5": "五", "6": "六", "7": "七", "8": "八", "9": "九",
+            ".": "点", "S": "艾斯", "H": "艾尺", "Z": "贼德",
+        }
+        return "".join(mapping.get(ch.upper(), ch) for ch in symbol)
 
     def _news_items(self, state: LiveState) -> list[str]:
         items = [f"股评 {x.symbol}: {x.comment}" for x in state.selected_comments[:3]]

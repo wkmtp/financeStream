@@ -78,11 +78,22 @@ function speakNarration(text) {
   if (window.speechSynthesis.speaking || window.speechSynthesis.pending) return;
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = "zh-CN";
-  utterance.rate = 1.02;
+  const voices = window.speechSynthesis.getVoices ? window.speechSynthesis.getVoices() : [];
+  const zhVoice = voices.find(v => {
+    const lang = (v.lang || '').toLowerCase();
+    const name = (v.name || '').toLowerCase();
+    return lang.includes('zh') || lang.includes('cmn') || name.includes('chinese') || name.includes('mandarin');
+  });
+  if (zhVoice) {
+    utterance.voice = zhVoice;
+    utterance.lang = zhVoice.lang || 'zh-CN';
+  }
+  utterance.rate = 1.0;
   utterance.pitch = 1.0;
   utterance.onend = () => { lastNarration = text; };
   window.speechSynthesis.speak(utterance);
 }
+window.speechSynthesis && (window.speechSynthesis.onvoiceschanged = () => {});
 
 async function refresh() {
   const res = await fetch('/api/live/preview');
